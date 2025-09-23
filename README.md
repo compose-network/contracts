@@ -1,78 +1,66 @@
-<!-- This is a comment in Markdown 
+## Foundry
 
-🛠 Repository Setup Instructions
+**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
-After forking or cloning this template, run the following:
+Foundry consists of:
 
-1. Replace all occurrences of 'template-repository' with your actual repo name:
-   sed -i 's/template-repository/your-repo-name/g' README.md
+- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
-2. Fill in all TODO sections below.
+## Documentation
 
-3. Update [.github/CODEOWNERS](.github/CODEOWNERS) to reflect your team or maintainers.
+https://book.getfoundry.sh/
 
-4. Check `.gitignore` and `.dockerignore` files and modify them according to your project's structure.
+## Usage
 
-5. Update GitHub Actions in `.github/workflows/` if needed (e.g., rename, add secrets).
+### Build
 
--->
-<p align="center"><img src="https://framerusercontent.com/images/9FedKxMYLZKR9fxBCYj90z78.png?scale-down-to=512&width=893&height=363" alt="SSV Network"></p>
-
-<img src="https://github.com/ssvlabs/template-repository/actions/workflows/main.yml/badge.svg" alt="Check" />
-<a href="https://discord.com/invite/ssvnetworkofficial"><img src="https://img.shields.io/badge/discord-%23ssvlabs-8A2BE2.svg" alt="Discord" /></a>
-
-## ✨ Introduction
-
-<!-- Describe the purpose of this repository. -->
-This project provides a foundational structure for [describe your use case: e.g., smart contracts, node operators, CLI tools].
-
-## ⚙️  How to Build
-
-```bash
-# Clone the repo
-git clone https://github.com/ssvlabs/template-repository.git
-
-# Navigate
-cd your-repo-name
-
-# Install dependencies
-TODO
-
-# Build the code
-TODO
+```shell
+$ forge build
 ```
 
+### Test
 
-## 🚀 How to Run
-
-
-```bash
-# Run the main service
-npm start
-# or
-go run main.go
-# or
-python app.py
+```shell
+$ forge test
 ```
 
-## 🧪 Testing
+### Format
 
-```bash
-npm test
-# or
-go test ./...
-# or
-pytest
+```shell
+$ forge fmt
 ```
 
+### Gas Snapshots
 
-## Contributing
+```shell
+$ forge snapshot
+```
 
-We welcome community contributions!
+### Anvil
 
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-- Create a branch, push your changes, and open a PR.
+```shell
+$ anvil
+```
 
-## License
+### Deploy
 
-Repository is distributed under [GPL-3.0](LICENSE).
+```shell
+$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+```
+
+### Cast
+
+```shell
+$ cast <subcommand>
+```
+
+### Help
+
+```shell
+$ forge --help
+$ anvil --help
+$ cast --help
+```
