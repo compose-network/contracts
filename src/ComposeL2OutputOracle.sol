@@ -79,9 +79,6 @@ contract ComposeL2OutputOracle is Initializable, ISemver, IComposeL2OutputOracle
             bytes memory proof
         ) = abi.decode(_extraData, (SuperblockAggregationOutputs, bytes));
 
-        if (superBlockNumber > superBlockAggOutputs.superblockNumber) {
-            revert InvalidSuperBlockNumber();
-        }
 
         if (_outputRoot == bytes32(0)) {
             revert EmptyOutputRoot();
