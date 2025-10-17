@@ -14,7 +14,11 @@ compose-contracts/
 │   └── README.md          # L1 documentation
 │
 └── L2/                    # L2 execution layer contracts
-    └── (to be added)
+    ├── src/               # Mailbox, Bridge, PingPong, BridgeableToken
+    ├── script/            # Deployment scripts
+    ├── test/              # Contract tests
+    ├── justfile           # Deployment commands
+    └── README.md          # L2 documentation
 ```
 
 ## 🏗️ Components
@@ -38,7 +42,21 @@ just deploy-network sepolia
 
 ### L2
 
-L2 execution layer contracts (to be added).
+The L2 execution layer contracts handle:
+- **Mailbox** - Cross-rollup message handling and coordination
+- **PingPong** - Cross-rollup messaging demonstration
+- **Bridge** - Asset bridging between rollups
+- **BridgeableToken** - Token with cross-rollup support
+
+**📚 Full documentation:** [L2/README.md](L2/README.md)
+
+**Quick start:**
+```bash
+cd L2
+just init-config
+just build
+just deploy-network rollup-a
+```
 
 ## 🚀 Getting Started
 
@@ -63,9 +81,11 @@ cd L1-settlement
 just setup
 just build
 
-# For L2 (when available)
+# For L2 deployment
 cd ../L2
-# (instructions to be added)
+just init-config  # Create config files
+just build
+just deploy-network rollup-a
 ```
 
 ## 📖 Documentation
@@ -83,7 +103,9 @@ cd ../L2
 - **[Contract Parameters](L1-settlement/docs/CONTRACT_PARAMS.md)** - Parameter reference
 
 ### L2 Execution Layer
-- **L2 Documentation:** (to be added)
+- **[L2 README](L2/README.md)** - Main L2 documentation
+- **[Quick Start](L2/GETTING_STARTED.md)** - Get started guide
+- **[Deployment Scripts](L2/script/)** - Deployment implementations
 
 ## 🏛️ Architecture
 
