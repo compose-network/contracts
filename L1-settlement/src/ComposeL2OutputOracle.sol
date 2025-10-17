@@ -144,6 +144,16 @@ contract ComposeL2OutputOracle is Initializable, ISemver, IComposeL2OutputOracle
         emit VerifierUpdated(_verifier);
     }
 
+    // TODO remove in prod
+    function setApprovedProposer(address _approvedProposer) external {
+        require(
+            msg.sender == owner,
+            "ComposeL2OutputOracle: only owner can update approved proposer"
+        );
+        approvedProposer = _approvedProposer;
+        emit ApprovedProposerUpdated(approvedProposer);
+    }
+
     function version() external pure returns (string memory) {
         return "0.0.1";
     }

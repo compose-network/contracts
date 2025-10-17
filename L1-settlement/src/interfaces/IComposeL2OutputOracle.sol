@@ -42,6 +42,7 @@ interface IComposeL2OutputOracle is IComposeL2OutputOracleTypes {
 
     event AggregationVkeyUpdated(bytes32 indexed aggregationVkey);
     event VerifierUpdated(address indexed verifier);
+    event ApprovedProposerUpdated(address indexed approvedProposer);
 
     error UnauthorizedProposer();
     error InvalidSuperBlockNumber();
