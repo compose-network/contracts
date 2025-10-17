@@ -1,0 +1,341 @@
+# ============================================================================
+# L2 Rollup Contracts - Justfile
+# ============================================================================
+# Quick deployment and management commands for L2 rollup contracts
+# ============================================================================
+
+# Display available commands
+default:
+    @just --list
+
+# ============================================================================
+# Setup & Build
+# ============================================================================
+
+# Initialize submodules (if any exist in L2)
+setup:
+    @echo "Initializing L2 project..."
+    @if [ -f ".gitmodules" ]; then \
+        cd .. && git submodule update --init --recursive L2/lib; \
+    else \
+        echo "No submodules to initialize"; \
+    fi
+    @echo "✓ Setup complete! Run 'just build' to compile contracts."
+
+# Build all contracts
+build:
+    @echo "Building contracts..."
+    forge build
+    @echo "✓ Build complete!"
+
+# Clean build artifacts
+clean:
+    @echo "Cleaning build artifacts..."
+    forge clean
+    rm -rf artifacts/*.json
+    rm -rf deployment-*.log
+    @echo "✓ Clean complete!"
+
+# Run tests
+test:
+    @echo "Running tests..."
+    forge test
+
+# Run tests with verbosity
+test-verbose:
+    @echo "Running tests (verbose)..."
+    forge test -vvv
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+
+# List available networks from networks.toml
+list-networks:
+    @echo "Available networks:"
+    @grep '^\[' networks.toml 2>/dev/null | tr -d '[]' | sed 's/^/  - /' || echo "  (networks.toml not found)"
+
+# Show network configuration for specific network
+show-network NETWORK:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    echo "Network Configuration for: $NETWORK_NAME"
+    echo "  Chain ID: $NETWORK_CHAIN_ID"
+    echo "  RPC URL:  $NETWORK_RPC_URL"
+    if [ -n "${NETWORK_BLOCKSCOUT_URL:-}" ]; then
+        echo "  Blockscout: $NETWORK_BLOCKSCOUT_URL"
+    fi
+
+# Test network connection
+test-network NETWORK:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    echo "Testing connection to $NETWORK_NAME..."
+    BLOCK=$(cast block-number --rpc-url "$NETWORK_RPC_URL" 2>&1)
+    if [ $? -eq 0 ]; then
+        echo "✓ Connection successful! Current block: $BLOCK"
+    else
+        echo "✗ Connection failed"
+        exit 1
+    fi
+
+# ============================================================================
+# Deployment
+# ============================================================================
+
+# Deploy to specific network
+deploy-network NETWORK:
+    @./scripts/deploy.sh {{NETWORK}}
+
+# Deploy to multiple networks sequentially
+deploy-multi *NETWORKS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Deploying to multiple networks: {{NETWORKS}}"
+    for network in {{NETWORKS}}; do
+        echo ""
+        echo "========================================="
+        echo "Deploying to: $network"
+        echo "========================================="
+        just deploy-network $network || exit 1
+        echo ""
+    done
+    echo "✓ All deployments completed!"
+
+# ============================================================================
+# Deployment Information
+# ============================================================================
+
+# Show all deployments from deployments.json
+show-deployments:
+    @if [ -f deployments.json ]; then \
+        cat deployments.json | jq '.'; \
+    else \
+        echo "No deployments found. Run 'just deploy-network <network>' first"; \
+    fi
+
+# Get deployment addresses for specific network
+get-deployment NETWORK:
+    @if [ -f deployments.json ]; then \
+        jq -r '.["{{NETWORK}}"] // "Network not found"' deployments.json; \
+    else \
+        echo "No deployments found"; \
+    fi
+
+# Show deployment artifact for specific network
+show-artifact NETWORK:
+    @if [ -f artifacts/deploy-{{NETWORK}}.json ]; then \
+        cat artifacts/deploy-{{NETWORK}}.json | jq '.'; \
+    else \
+        echo "Artifact not found for network: {{NETWORK}}"; \
+    fi
+
+# ============================================================================
+# Contract Verification
+# ============================================================================
+
+# Verify all contracts on Blockscout
+verify-all NETWORK:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    
+    if [ -z "${NETWORK_EXPLORER_API_URL:-}" ]; then
+        echo "Error: explorer_api_url not configured for network {{NETWORK}}"
+        exit 1
+    fi
+    
+    echo "========================================="
+    echo "Verifying contracts on {{NETWORK}}"
+    echo "========================================="
+    
+    # Get contract addresses from deployments.json
+    MAILBOX=$(jq -r '.["{{NETWORK}}"].contracts.Mailbox // empty' deployments.json 2>/dev/null)
+    PINGPONG=$(jq -r '.["{{NETWORK}}"].contracts.PingPong // empty' deployments.json 2>/dev/null)
+    BRIDGE=$(jq -r '.["{{NETWORK}}"].contracts.Bridge // empty' deployments.json 2>/dev/null)
+    TOKEN=$(jq -r '.["{{NETWORK}}"].contracts.BridgeableToken // empty' deployments.json 2>/dev/null)
+    COORDINATOR=$(jq -r '.["{{NETWORK}}"].contracts.Coordinator // empty' deployments.json 2>/dev/null)
+    
+    if [ -z "$MAILBOX" ]; then
+        echo "Error: No deployment found for {{NETWORK}}"
+        echo "Run 'just deploy-network {{NETWORK}}' first"
+        exit 1
+    fi
+    
+    # Verify Mailbox
+    echo ""
+    echo "Verifying Mailbox at $MAILBOX..."
+    just verify-mailbox {{NETWORK}} "$MAILBOX" "$COORDINATOR" || true
+    
+    # Verify PingPong
+    echo ""
+    echo "Verifying PingPong at $PINGPONG..."
+    just verify-pingpong {{NETWORK}} "$PINGPONG" "$MAILBOX" || true
+    
+    # Verify Bridge
+    echo ""
+    echo "Verifying Bridge at $BRIDGE..."
+    just verify-bridge {{NETWORK}} "$BRIDGE" "$MAILBOX" || true
+    
+    # Verify BridgeableToken
+    echo ""
+    echo "Verifying BridgeableToken at $TOKEN..."
+    just verify-token {{NETWORK}} "$TOKEN" "$BRIDGE" || true
+    
+    echo ""
+    echo "========================================="
+    echo "✓ Verification complete!"
+    echo "========================================="
+
+# Verify Mailbox contract
+verify-mailbox NETWORK ADDRESS COORDINATOR:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        --constructor-args $(cast abi-encode "constructor(address)" {{COORDINATOR}}) \
+        {{ADDRESS}} \
+        src/Mailbox.sol:Mailbox
+
+# Verify PingPong contract
+verify-pingpong NETWORK ADDRESS MAILBOX:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        --constructor-args $(cast abi-encode "constructor(address)" {{MAILBOX}}) \
+        {{ADDRESS}} \
+        src/PingPong.sol:PingPong
+
+# Verify Bridge contract
+verify-bridge NETWORK ADDRESS MAILBOX:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        --constructor-args $(cast abi-encode "constructor(address)" {{MAILBOX}}) \
+        {{ADDRESS}} \
+        src/Bridge.sol:Bridge
+
+# Verify BridgeableToken contract
+verify-token NETWORK ADDRESS BRIDGE:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        --constructor-args $(cast abi-encode "constructor(address)" {{BRIDGE}}) \
+        {{ADDRESS}} \
+        src/BridgeableToken.sol:BridgeableToken
+
+# ============================================================================
+# Individual Contract Queries
+# ============================================================================
+
+# Get Mailbox address for network
+get-mailbox NETWORK:
+    @jq -r '.["{{NETWORK}}"].contracts.Mailbox // "Not deployed"' deployments.json 2>/dev/null || echo "deployments.json not found"
+
+# Get PingPong address for network
+get-pingpong NETWORK:
+    @jq -r '.["{{NETWORK}}"].contracts.PingPong // "Not deployed"' deployments.json 2>/dev/null || echo "deployments.json not found"
+
+# Get Bridge address for network
+get-bridge NETWORK:
+    @jq -r '.["{{NETWORK}}"].contracts.Bridge // "Not deployed"' deployments.json 2>/dev/null || echo "deployments.json not found"
+
+# Get Token address for network
+get-token NETWORK:
+    @jq -r '.["{{NETWORK}}"].contracts.BridgeableToken // "Not deployed"' deployments.json 2>/dev/null || echo "deployments.json not found"
+
+# ============================================================================
+# Utilities
+# ============================================================================
+
+# Format Solidity code
+format:
+    @echo "Formatting Solidity code..."
+    forge fmt
+    @echo "✓ Formatting complete!"
+
+# Check Solidity code formatting
+format-check:
+    @echo "Checking Solidity formatting..."
+    forge fmt --check
+
+# Generate gas report
+gas-report:
+    @echo "Generating gas report..."
+    forge test --gas-report
+
+# View deployment logs for a network
+logs NETWORK:
+    @if [ -f deployment-{{NETWORK}}.log ]; then \
+        cat deployment-{{NETWORK}}.log; \
+    else \
+        echo "No logs found for network: {{NETWORK}}"; \
+    fi
+
+# Create networks.toml from example if it doesn't exist
+init-config:
+    @if [ ! -f networks.toml ]; then \
+        cp networks.toml.example networks.toml; \
+        echo "✓ Created networks.toml from example"; \
+        echo "  Please edit networks.toml with your network configurations"; \
+    else \
+        echo "networks.toml already exists"; \
+    fi
+    @if [ ! -f .env ]; then \
+        cp .env.example .env; \
+        echo "✓ Created .env from example"; \
+        echo "  Please edit .env with your private key and configuration"; \
+    else \
+        echo ".env already exists"; \
+    fi
+
+# Validate setup
+check-setup:
+    @echo "Checking L2 deployment setup..."
+    @echo ""
+    @echo "=== Configuration Files ==="
+    @if [ -f .env ]; then \
+        echo "✓ .env file exists"; \
+        if grep -q "DEPLOYER_PRIVATE_KEY=0x\.\.\." .env; then \
+            echo "  ⚠ DEPLOYER_PRIVATE_KEY needs to be set"; \
+        else \
+            echo "  ✓ DEPLOYER_PRIVATE_KEY is set"; \
+        fi; \
+        if grep -q "COORDINATOR_ADDRESS=0x\.\.\." .env; then \
+            echo "  ⚠ COORDINATOR_ADDRESS needs to be set"; \
+        else \
+            echo "  ✓ COORDINATOR_ADDRESS is set"; \
+        fi; \
+    else \
+        echo "✗ .env file missing. Run: just init-config"; \
+    fi
+    @if [ -f networks.toml ]; then \
+        echo "✓ networks.toml file exists"; \
+        echo "  Configured networks: $$(grep '^\[' networks.toml | wc -l | tr -d ' ')"; \
+    else \
+        echo "✗ networks.toml missing. Run: just init-config"; \
+    fi
+    @echo ""
+    @echo "=== Build Status ==="
+    @if [ -d out ]; then \
+        echo "✓ Contracts built (out/ directory exists)"; \
+    else \
+        echo "⚠ Contracts not built yet. Run: just build"; \
+    fi

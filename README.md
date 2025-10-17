@@ -1,66 +1,160 @@
-## Foundry
+# Compose Network Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+This repository contains the smart contracts for the Compose Network, organized into two main components:
 
-Foundry consists of:
+## 📁 Repository Structure
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```
+compose-contracts/
+├── L1-settlement/          # L1 settlement layer contracts
+│   ├── src/               # ComposeL2OutputOracle, ComposeDisputeGame
+│   ├── script/            # Deployment scripts
+│   ├── test/              # Contract tests
+│   ├── justfile           # Deployment commands
+│   └── README.md          # L1 documentation
+│
+└── L2/                    # L2 execution layer contracts
+    ├── src/               # Mailbox, Bridge, PingPong, BridgeableToken
+    ├── script/            # Deployment scripts
+    ├── test/              # Contract tests
+    ├── justfile           # Deployment commands
+    └── README.md          # L2 documentation
 ```
 
-### Test
+## 🏗️ Components
 
-```shell
-$ forge test
+### L1-settlement
+
+The L1 settlement layer contracts handle:
+- **ComposeL2OutputOracle** - Manages L2 output proposals with SP1 proof verification
+- **ComposeDisputeGame** - Handles dispute resolution for L2 outputs  
+- **DisputeGameFactory** - Factory for creating dispute game instances
+
+**📚 Full documentation:** [L1-settlement/README.md](L1-settlement/README.md)
+
+**Quick start:**
+```bash
+cd L1-settlement
+just setup
+just build
+just deploy-network sepolia
 ```
 
-### Format
+### L2
 
-```shell
-$ forge fmt
+The L2 execution layer contracts handle:
+- **Mailbox** - Cross-rollup message handling and coordination
+- **PingPong** - Cross-rollup messaging demonstration
+- **Bridge** - Asset bridging between rollups
+- **BridgeableToken** - Token with cross-rollup support
+
+**📚 Full documentation:** [L2/README.md](L2/README.md)
+
+**Quick start:**
+```bash
+cd L2
+just init-config
+just build
+just deploy-network rollup-a
 ```
 
-### Gas Snapshots
+## 🚀 Getting Started
 
-```shell
-$ forge snapshot
+### Prerequisites
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- [just](https://github.com/casey/just#installation)
+- [jq](https://stedolan.github.io/jq/)
+
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/compose-network/compose-contracts.git
+cd compose-contracts
+
+# Initialize submodules
+git submodule update --init --recursive
+
+# For L1 deployment
+cd L1-settlement
+just setup
+just build
+
+# For L2 deployment
+cd ../L2
+just init-config  # Create config files
+just build
+just deploy-network rollup-a
 ```
 
-### Anvil
+## 📖 Documentation
 
-```shell
-$ anvil
+### Repository Structure & Setup
+- **[Quick Reference](QUICK_REFERENCE.md)** - Essential commands
+- **[Restructuring Summary](RESTRUCTURING_SUMMARY.md)** - Migration guide
+- **[Submodule Fix Notes](SUBMODULE_FIX_NOTES.md)** - Git submodule troubleshooting
+
+### L1 Settlement Layer
+- **[L1 README](L1-settlement/README.md)** - Main L1 documentation
+- **[Quick Start](L1-settlement/GETTING_STARTED.md)** - Get started guide
+- **[Deployment Guide](L1-settlement/docs/DEPLOYMENT_GUIDE.md)** - Deploy contracts
+- **[Network Configuration](L1-settlement/docs/NETWORK_CONFIG.md)** - Configure networks
+- **[Contract Parameters](L1-settlement/docs/CONTRACT_PARAMS.md)** - Parameter reference
+
+### L2 Execution Layer
+- **[L2 README](L2/README.md)** - Main L2 documentation
+- **[Quick Start](L2/GETTING_STARTED.md)** - Get started guide
+- **[Deployment Scripts](L2/script/)** - Deployment implementations
+
+## 🏛️ Architecture
+
+```
+┌─────────────────────────────────────────┐
+│          L1 Networks                     │
+│  (Ethereum, Hoodi, etc.)                │
+│                                          │
+│  ┌────────────────────────────────────┐ │
+│  │  ComposeL2OutputOracle (Proxy)    │ │
+│  │  - Verifies L2 state roots        │ │
+│  │  - Uses SP1 proofs                │ │
+│  └────────────────────────────────────┘ │
+│                                          │
+│  ┌────────────────────────────────────┐ │
+│  │  ComposeDisputeGame               │ │
+│  │  - Dispute resolution             │ │
+│  └────────────────────────────────────┘ │
+│                                          │
+│  ┌────────────────────────────────────┐ │
+│  │  DisputeGameFactory               │ │
+│  │  - Creates dispute games          │ │
+│  └────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────┐
+│          L2 Network                      │
+│  (Compose Execution Layer)              │
+│                                          │
+│  (Contracts to be added)                │
+└─────────────────────────────────────────┘
 ```
 
-### Deploy
+## 🔗 Links
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
+- [Compose Network Documentation](https://docs.compose.network) (if available)
+- [Optimism Bedrock](https://github.com/ethereum-optimism/optimism)
+- [SP1 Documentation](https://docs.succinct.xyz/)
 
-### Cast
+## 📄 License
 
-```shell
-$ cast <subcommand>
-```
+MIT License - see individual project LICENSE files for details.
 
-### Help
+## 🤝 Contributing
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+Contributions welcome! Please see individual project READMEs for specific contribution guidelines.
+
+## 📞 Support
+
+- L1 Settlement Issues: See [L1-settlement/README.md](L1-settlement/README.md)
+- L2 Execution Issues: (to be added)
+- General Issues: [GitHub Issues](https://github.com/compose-network/compose-contracts/issues)
