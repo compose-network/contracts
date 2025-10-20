@@ -8,18 +8,15 @@ import {ComposeDisputeGame} from "../src/ComposeDisputeGame.sol";
 
 contract DeployComposeDisputeGame is Script {
     function run(address oracle) public returns (address composeDisputeGame) {
-        uint256 deployPk = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-
-        if (deployPk != uint256(0)) {
-            vm.startBroadcast(deployPk);
-        } else {
-            vm.startBroadcast();
-        }
+        vm.startBroadcast();
 
         console.log("Deploying ComposeDisputeGame implementation...");
         composeDisputeGame = address(new ComposeDisputeGame(oracle));
 
-        console.log("ComposeDisputeGame implementation deployed at:", composeDisputeGame);
+        console.log(
+            "ComposeDisputeGame implementation deployed at:",
+            composeDisputeGame
+        );
 
         vm.stopBroadcast();
     }
