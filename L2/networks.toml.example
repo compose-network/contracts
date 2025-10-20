@@ -5,7 +5,7 @@
 # Usage:
 #   1. Copy this file: cp networks.toml.example networks.toml
 #   2. Fill in your network details
-#   3. Deploy: just deploy-network <network-name>
+#   3. Deploy: just deploy-core <network-name>
 #
 # Note: networks.toml is gitignored to prevent accidental credential leaks
 # ============================================================================

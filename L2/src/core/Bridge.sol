@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3
 pragma solidity 0.8.30;
 
-import { IBridgeableToken } from "@ssv/src/interfaces/IBridgeableToken.sol";
-import { IMailbox } from "@ssv/src/interfaces/IMailbox.sol";
-import { IBridge } from "@ssv/src/interfaces/IBridge.sol";
+import { IBridgeableToken } from "@ssv/src/core/interfaces/IBridgeableToken.sol";
+import { IMailbox } from "@ssv/src/core/interfaces/IMailbox.sol";
+import { IBridge } from "@ssv/src/core/interfaces/IBridge.sol";
 
 /**
  * @title Bridge

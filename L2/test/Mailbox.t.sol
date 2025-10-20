@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.30;
 
-import { IMailbox } from "@ssv/src/interfaces/IMailbox.sol";
+import { IMailbox } from "@ssv/src/core/interfaces/IMailbox.sol";
 import { Setup } from "@ssv/test/Setup.t.sol";
 
 contract MailboxTest is Setup {

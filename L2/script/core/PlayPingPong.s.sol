@@ -2,8 +2,8 @@
 pragma solidity 0.8.30;
 
 import "forge-std/Script.sol";
-import { Mailbox } from "../src/Mailbox.sol";
-import { PingPong } from "../src/PingPong.sol";
+import { Mailbox } from "@ssv/src/core/Mailbox.sol";
+import { PingPong } from "@ssv/src/core/PingPong.sol";
 
 contract SimulatePingPong is Script {
     address internal coordinator = vm.envAddress("DEPLOYER_ADDRESS");

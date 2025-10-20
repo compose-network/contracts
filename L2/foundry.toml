@@ -7,10 +7,9 @@ optimizer_runs = 10_000
 gas_reports = ["*"]
 fs_permissions = [{ access = "read", path = "./script/config/"}, { access = "read-write", path = "./artifacts/"}]
 
-[rpc_endpoints]
-rollupA = "${ROLLUP_A_RPC_URL}"
-rollupB = "${ROLLUP_B_RPC_URL}"
 
+auto_detect_solc = true
+offline = false
 
 [fmt]
 bracket_spacing = false

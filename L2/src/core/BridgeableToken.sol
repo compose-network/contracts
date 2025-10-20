@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IBridgeableToken } from "@ssv/src/interfaces/IBridgeableToken.sol";
+import { IBridgeableToken } from "@ssv/src/core/interfaces/IBridgeableToken.sol";
 
 /**
  * @title BridgeableToken

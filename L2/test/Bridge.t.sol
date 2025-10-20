@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import { Setup } from "@ssv/test/Setup.t.sol";
-import { IBridge } from "@ssv/src/interfaces/IBridge.sol";
+import { IBridge } from "@ssv/src/core/interfaces/IBridge.sol";
 
 contract BridgeTest is Setup {
     uint256 internal thisChain = block.chainid;
