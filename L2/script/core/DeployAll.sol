@@ -4,10 +4,10 @@ pragma solidity 0.8.30;
 import { Script, console } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
-import { Mailbox } from "@ssv/src/Mailbox.sol";
-import { PingPong } from "@ssv/src/PingPong.sol";
-import { BridgeableToken } from "@ssv/src/BridgeableToken.sol";
-import { Bridge } from "@ssv/src/Bridge.sol";
+import { Mailbox } from "@ssv/src/core/Mailbox.sol";
+import { PingPong } from "@ssv/src/core/PingPong.sol";
+import { BridgeableToken } from "@ssv/src/core/BridgeableToken.sol";
+import { Bridge } from "@ssv/src/core/Bridge.sol";
 
 contract DeployAll is Script {
     using stdJson for string;

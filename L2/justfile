@@ -85,9 +85,13 @@ test-network NETWORK:
 # Deployment
 # ============================================================================
 
-# Deploy to specific network
+# Deploy core contracts to specific network
 deploy-network NETWORK:
-    @./scripts/deploy.sh {{NETWORK}}
+    @./scripts/deploy-core.sh {{NETWORK}}
+
+# Alias for backward compatibility
+deploy-core NETWORK:
+    @./scripts/deploy-core.sh {{NETWORK}}
 
 # Deploy to multiple networks sequentially
 deploy-multi *NETWORKS:
@@ -99,7 +103,7 @@ deploy-multi *NETWORKS:
         echo "========================================="
         echo "Deploying to: $network"
         echo "========================================="
-        just deploy-network $network || exit 1
+        just deploy-core $network || exit 1
         echo ""
     done
     echo "✓ All deployments completed!"
@@ -113,7 +117,7 @@ show-deployments:
     @if [ -f deployments.json ]; then \
         cat deployments.json | jq '.'; \
     else \
-        echo "No deployments found. Run 'just deploy-network <network>' first"; \
+        echo "No deployments found. Run 'just deploy-core <network>' first"; \
     fi
 
 # Get deployment addresses for specific network
@@ -160,7 +164,7 @@ verify-all NETWORK:
     
     if [ -z "$MAILBOX" ]; then
         echo "Error: No deployment found for {{NETWORK}}"
-        echo "Run 'just deploy-network {{NETWORK}}' first"
+        echo "Run 'just deploy-core {{NETWORK}}' first"
         exit 1
     fi
     
@@ -200,7 +204,7 @@ verify-mailbox NETWORK ADDRESS COORDINATOR:
         --verifier-url "$NETWORK_EXPLORER_API_URL" \
         --constructor-args $(cast abi-encode "constructor(address)" {{COORDINATOR}}) \
         {{ADDRESS}} \
-        src/Mailbox.sol:Mailbox
+        src/core/Mailbox.sol:Mailbox
 
 # Verify PingPong contract
 verify-pingpong NETWORK ADDRESS MAILBOX:
@@ -213,7 +217,7 @@ verify-pingpong NETWORK ADDRESS MAILBOX:
         --verifier-url "$NETWORK_EXPLORER_API_URL" \
         --constructor-args $(cast abi-encode "constructor(address)" {{MAILBOX}}) \
         {{ADDRESS}} \
-        src/PingPong.sol:PingPong
+        src/core/PingPong.sol:PingPong
 
 # Verify Bridge contract
 verify-bridge NETWORK ADDRESS MAILBOX:
@@ -226,7 +230,7 @@ verify-bridge NETWORK ADDRESS MAILBOX:
         --verifier-url "$NETWORK_EXPLORER_API_URL" \
         --constructor-args $(cast abi-encode "constructor(address)" {{MAILBOX}}) \
         {{ADDRESS}} \
-        src/Bridge.sol:Bridge
+        src/core/Bridge.sol:Bridge
 
 # Verify BridgeableToken contract
 verify-token NETWORK ADDRESS BRIDGE:
@@ -239,7 +243,112 @@ verify-token NETWORK ADDRESS BRIDGE:
         --verifier-url "$NETWORK_EXPLORER_API_URL" \
         --constructor-args $(cast abi-encode "constructor(address)" {{BRIDGE}}) \
         {{ADDRESS}} \
-        src/BridgeableToken.sol:BridgeableToken
+        src/core/BridgeableToken.sol:BridgeableToken
+
+# ============================================================================
+# DEX Contract Verification
+# ============================================================================
+
+# Verify all DEX contracts on network
+verify-all-dex NETWORK:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    
+    echo "========================================="
+    echo "Verifying DEX contracts on {{NETWORK}}"
+    echo "========================================="
+    
+    # Get contract addresses from deployments.json
+    WETH=$(jq -r '.["{{NETWORK}}"].dex.WETH // empty' deployments.json 2>/dev/null)
+    USDC=$(jq -r '.["{{NETWORK}}"].dex.USDC // empty' deployments.json 2>/dev/null)
+    SSV=$(jq -r '.["{{NETWORK}}"].dex.SSV // empty' deployments.json 2>/dev/null)
+    SWAPPER=$(jq -r '.["{{NETWORK}}"].dex.Swapper // empty' deployments.json 2>/dev/null)
+    
+    if [ -z "$WETH" ]; then
+        echo "Error: No DEX deployment found for {{NETWORK}}"
+        echo "Run 'just deploy-dex-tokens {{NETWORK}}' first"
+        exit 1
+    fi
+    
+    # Verify WETH
+    echo ""
+    echo "Verifying WETH at $WETH..."
+    just verify-weth {{NETWORK}} "$WETH" || true
+    
+    # Verify USDC
+    echo ""
+    echo "Verifying USDC at $USDC..."
+    just verify-usdc {{NETWORK}} "$USDC" || true
+    
+    # Verify SSV
+    echo ""
+    echo "Verifying SSV at $SSV..."
+    just verify-ssv {{NETWORK}} "$SSV" || true
+    
+    # Verify Swapper (if deployed)
+    if [ -n "$SWAPPER" ] && [ "$SWAPPER" != "null" ]; then
+        echo ""
+        echo "Verifying Swapper at $SWAPPER..."
+        just verify-swapper {{NETWORK}} "$SWAPPER" "$WETH" "$USDC" "$SSV" || true
+    else
+        echo ""
+        echo "⚠ Swapper not deployed, skipping verification"
+    fi
+    
+    echo ""
+    echo "========================================="
+    echo "✓ DEX verification complete!"
+    echo "========================================="
+
+# Verify WETH9 contract
+verify-weth NETWORK ADDRESS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        {{ADDRESS}} \
+        lib/external/WETH9.sol:WETH9
+
+# Verify USDC token contract
+verify-usdc NETWORK ADDRESS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        {{ADDRESS}} \
+        src/dex/USDCMintable.sol:USDCMintable
+
+# Verify SSV token contract
+verify-ssv NETWORK ADDRESS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        {{ADDRESS}} \
+        src/dex/SSVMintable.sol:SSVMintable
+
+# Verify Swapper contract
+verify-swapper NETWORK ADDRESS WETH USDC SSV:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        --constructor-args $(cast abi-encode "constructor(address,address,address)" {{WETH}} {{USDC}} {{SSV}}) \
+        {{ADDRESS}} \
+        src/dex/USDC_SSV_WETH_Swapper.sol:USDC_SSV_WETH_Swapper
 
 # ============================================================================
 # Individual Contract Queries
@@ -338,4 +447,90 @@ check-setup:
         echo "✓ Contracts built (out/ directory exists)"; \
     else \
         echo "⚠ Contracts not built yet. Run: just build"; \
+    fi
+
+# ============================================================================
+# DEX Deployment
+# ============================================================================
+
+# Deploy DEX tokens (WETH, USDC, SSV) to network
+deploy-dex-tokens NETWORK:
+    @./scripts/dex/deploy-tokens.sh {{NETWORK}}
+
+# Deploy swapper contract to network (requires tokens deployed first)
+deploy-dex-swapper NETWORK:
+    @./scripts/dex/deploy-swapper.sh {{NETWORK}}
+
+# Fund swapper with liquidity (default amounts: 1M each)
+fund-dex-swapper NETWORK:
+    @./scripts/dex/fund-swapper.sh {{NETWORK}}
+
+# Fund swapper with custom amounts (in ether units, e.g., 1000000 = 1M tokens)
+fund-dex-swapper-custom NETWORK WETH_AMOUNT USDC_AMOUNT SSV_AMOUNT:
+    @./scripts/dex/fund-swapper.sh {{NETWORK}} {{WETH_AMOUNT}} {{USDC_AMOUNT}} {{SSV_AMOUNT}}
+
+# Deploy all DEX contracts to network and fund swapper
+deploy-dex-all NETWORK:
+    @echo "========================================="
+    @echo "Deploying complete DEX stack to {{NETWORK}}"
+    @echo "========================================="
+    @just deploy-dex-tokens {{NETWORK}}
+    @echo ""
+    @echo "✓ Tokens deployed"
+    @echo ""
+    @just deploy-dex-swapper {{NETWORK}}
+    @echo ""
+    @echo "✓ Swapper deployed"
+    @echo ""
+    @just fund-dex-swapper {{NETWORK}}
+    @echo ""
+    @echo "========================================="
+    @echo "✓ Complete DEX stack deployed!"
+    @echo "========================================="
+
+# Get DEX deployment info for network
+get-dex-info NETWORK:
+    @echo "DEX Deployment Info for {{NETWORK}}:"
+    @echo ""
+    @if [ -f deployments.json ]; then \
+        jq -r '.["{{NETWORK}}"].dex // "DEX not deployed on this network"' deployments.json; \
+    else \
+        echo "deployments.json not found"; \
+    fi
+
+# Get swapper reserves for network
+get-dex-reserves NETWORK:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    if [ -f deployments.json ]; then
+        SWAPPER=$(jq -r '.["{{NETWORK}}"].dex.Swapper // empty' deployments.json)
+        if [ -n "$SWAPPER" ] && [ "$SWAPPER" != "null" ]; then
+            echo "Swapper Reserves on {{NETWORK}}:"
+            cast call $SWAPPER "getReserves()(uint256,uint256,uint256)" --rpc-url "$NETWORK_RPC_URL"
+        else
+            echo "Swapper not deployed on {{NETWORK}}"
+        fi
+    else
+        echo "deployments.json not found"
+    fi
+
+# Check swap price on network (example: WETH to USDC, 1 token)
+check-swap-price NETWORK TOKEN_IN TOKEN_OUT AMOUNT:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    if [ -f deployments.json ]; then
+        SWAPPER=$(jq -r '.["{{NETWORK}}"].dex.Swapper // empty' deployments.json)
+        if [ -n "$SWAPPER" ] && [ "$SWAPPER" != "null" ]; then
+            echo "Swap Price on {{NETWORK}}:"
+            echo "  From: Token {{TOKEN_IN}}"
+            echo "  To:   Token {{TOKEN_OUT}}"
+            echo "  Amount: {{AMOUNT}}"
+            cast call $SWAPPER "getSwapPrice(uint8,uint8,uint256)(uint256,uint256)" {{TOKEN_IN}} {{TOKEN_OUT}} {{AMOUNT}} --rpc-url "$NETWORK_RPC_URL"
+        else
+            echo "Swapper not deployed on {{NETWORK}}"
+        fi
+    else
+        echo "deployments.json not found"
     fi

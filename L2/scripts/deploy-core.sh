@@ -62,20 +62,23 @@ echo ""
 echo "========================================="
 echo ""
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 # Run deployment script
-forge script script/DeployContracts.s.sol:DeployContracts \
+forge script script/core/DeployContracts.s.sol:DeployContracts \
     --rpc-url "$NETWORK_RPC_URL" \
     --private-key "$DEPLOYER_PRIVATE_KEY" \
     --broadcast \
     --sig "run(address,string)" \
     "$COORDINATOR_ADDRESS" \
     "$NETWORK" \
-    2>&1 | tee "deployment-${NETWORK}.log"
+    2>&1 | tee "logs/deployment-${NETWORK}.log"
 
 # Check if deployment was successful
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo ""
-    echo "❌ Deployment failed. Check deployment-${NETWORK}.log for details"
+    echo "❌ Deployment failed. Check logs/deployment-${NETWORK}.log for details"
     exit 1
 fi
 

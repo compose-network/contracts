@@ -2,8 +2,8 @@
 pragma solidity 0.8.30;
 
 import { Setup } from "@ssv/test/Setup.t.sol";
-import { PingPong } from "@ssv/src/PingPong.sol";
-import { IPingPong } from "@ssv/src/interfaces/IPingPong.sol";
+import { PingPong } from "@ssv/src/core/PingPong.sol";
+import { IPingPong } from "@ssv/src/core/interfaces/IPingPong.sol";
 
 contract PingPongTest is Setup {
 
