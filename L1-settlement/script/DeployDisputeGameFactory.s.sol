@@ -8,15 +8,11 @@ import {Proxy} from "@optimism/src/universal/Proxy.sol";
 import {ProxyAdmin} from "@optimism/src/universal/ProxyAdmin.sol";
 import {DisputeGameFactory} from "@optimism/src/dispute/DisputeGameFactory.sol";
 
-
 contract DeployDisputeGameFactory is Script {
-    function run(address admin) public returns (address dgfProxyAddr, address dgfImplAddr) {
-        uint256 deployPk = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-        if (deployPk != uint256(0)) {
-            vm.startBroadcast(deployPk);
-        } else {
-            vm.startBroadcast();
-        }
+    function run(
+        address admin
+    ) public returns (address dgfProxyAddr, address dgfImplAddr) {
+        vm.startBroadcast();
 
         // 1) Deploy ProxyAdmin controlled by `admin`.
         ProxyAdmin proxyAdmin = new ProxyAdmin(admin);

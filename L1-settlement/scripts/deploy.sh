@@ -45,6 +45,7 @@ if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
         "$NETWORK_PROPOSER_ADDRESS" \
         "$NETWORK_AGGREGATION_VKEY" \
         "$NETWORK_STARTING_SUPERBLOCK_NUMBER" \
+        --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
         --verify \
         --etherscan-api-key "$ETHERSCAN_API_KEY" \
@@ -59,6 +60,7 @@ else
         "$NETWORK_PROPOSER_ADDRESS" \
         "$NETWORK_AGGREGATION_VKEY" \
         "$NETWORK_STARTING_SUPERBLOCK_NUMBER" \
+        --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
         2>&1 | tee "$TMP_OUTPUT"
 fi
@@ -100,6 +102,7 @@ if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
     forge script script/DeployComposeDisputeGame.s.sol:DeployComposeDisputeGame \
         --rpc-url "$NETWORK_RPC_URL" \
         --sig "run(address)" "$ORACLE_PROXY" \
+        --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
         --verify \
         --etherscan-api-key "$ETHERSCAN_API_KEY" \
@@ -109,6 +112,7 @@ else
     forge script script/DeployComposeDisputeGame.s.sol:DeployComposeDisputeGame \
         --rpc-url "$NETWORK_RPC_URL" \
         --sig "run(address)" "$ORACLE_PROXY" \
+        --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
         2>&1 | tee "$TMP_OUTPUT"
 fi
@@ -147,6 +151,7 @@ if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
     forge script script/DeployDisputeGameFactory.s.sol:DeployDisputeGameFactory \
         --rpc-url "$NETWORK_RPC_URL" \
         --sig "run(address)" "$NETWORK_ADMIN_ADDRESS" \
+        --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
         --verify \
         --etherscan-api-key "$ETHERSCAN_API_KEY" \
@@ -156,6 +161,7 @@ else
     forge script script/DeployDisputeGameFactory.s.sol:DeployDisputeGameFactory \
         --rpc-url "$NETWORK_RPC_URL" \
         --sig "run(address)" "$NETWORK_ADMIN_ADDRESS" \
+        --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
         2>&1 | tee "$TMP_OUTPUT"
 fi

@@ -16,17 +16,16 @@ contract DeployComposeL2OutputOracle is Script {
         bytes32 aggregationVkey,
         uint256 startingSuperBlockNumber
     ) public returns (address proxyAddress) {
-        uint256 deployPk = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-
-        if (deployPk != uint256(0)) {
-            vm.startBroadcast(deployPk);
-        } else {
-            vm.startBroadcast();
-        }
+        vm.startBroadcast();
 
         console.log("Deploying ComposeL2OutputOracle implementation...");
-        address composeL2OutputOracleImpl = address(new ComposeL2OutputOracle());
-        console.log("ComposeL2OutputOracle implementation deployed at:", composeL2OutputOracleImpl);
+        address composeL2OutputOracleImpl = address(
+            new ComposeL2OutputOracle()
+        );
+        console.log(
+            "ComposeL2OutputOracle implementation deployed at:",
+            composeL2OutputOracleImpl
+        );
 
         bytes memory initData = abi.encodeWithSelector(
             ComposeL2OutputOracle.initialize.selector,
@@ -40,7 +39,10 @@ contract DeployComposeL2OutputOracle is Script {
         );
 
         console.log("Deploying ComposeL2OutputOracle Proxy...");
-        ERC1967Proxy proxy = new ERC1967Proxy(composeL2OutputOracleImpl, initData);
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            composeL2OutputOracleImpl,
+            initData
+        );
         proxyAddress = address(proxy);
 
         console.log("ComposeL2OutputOracle proxy deployed at:", proxyAddress);
