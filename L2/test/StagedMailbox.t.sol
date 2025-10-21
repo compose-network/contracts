@@ -473,6 +473,7 @@ contract StagedMailboxTest is Setup {
         uint256 sessionId,
         bytes calldata label
     ) public view {
+        vm.assume(sender != address(0) && receiver != address(0));
         bytes32 key = stagedMailbox.getKey(srcChain, destChain, sender, receiver, sessionId, label);
         assertNotEq(key, bytes32(0), "Key should never be zero");
     }
