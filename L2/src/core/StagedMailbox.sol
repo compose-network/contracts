@@ -8,18 +8,17 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
     uint8 internal constant FLAG_CREATED = 0x01;
     uint8 internal constant FLAG_USED = 0x02;
 
+    uint256[] public chainIDsInbox;
+    uint256[] public chainIDsOutbox;
+    mapping(uint256 => bytes32) public inboxRootPerChain;
+    mapping(uint256 => bytes32) public outboxRootPerChain;
+
     mapping(bytes32 => uint8) public keyFlags;
 
     address public immutable COORDINATOR;
 
     mapping(bytes32 => bytes) public inbox;
     mapping(bytes32 => bytes) public outbox;
-
-    mapping(uint256 => bytes32) public inboxRootPerChain;
-    mapping(uint256 => bytes32) public outboxRootPerChain;
-
-    uint256[] public chainIDsInbox;
-    uint256[] public chainIDsOutbox;
 
     constructor(address _coordinator) {
         if (_coordinator == address(0)) {
