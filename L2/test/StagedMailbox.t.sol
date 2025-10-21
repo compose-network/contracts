@@ -20,7 +20,7 @@ contract StagedMailboxTest is Setup {
             "Coordinator should be set"
         );
 
-        vm.expectRevert(IStagedMailbox.OnlyCoordinatorAllowed.selector);
+        vm.expectRevert(IStagedMailbox.ZeroAddress.selector);
         new StagedMailbox(address(0));
     }
 
