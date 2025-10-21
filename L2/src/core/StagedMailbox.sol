@@ -4,12 +4,15 @@ pragma solidity 0.8.30;
 import { IStagedMailbox } from "./interfaces/IStagedMailbox.sol";
 
 contract StagedMailbox is IStagedMailbox {
+    uint8 internal constant FLAG_CREATED = 0x01;
+    uint8 internal constant FLAG_USED = 0x02;
+
+    mapping(bytes32 => uint8) public keyFlags;
+
     address public immutable COORDINATOR;
 
     mapping(bytes32 => bytes) public inbox;
     mapping(bytes32 => bytes) public outbox;
-    mapping(bytes32 => bool) public createdKeys;
-    mapping(bytes32 => bool) public usedKeys;
 
     mapping(uint256 => bytes32) public inboxRootPerChain;
     mapping(uint256 => bytes32) public outboxRootPerChain;
@@ -53,11 +56,11 @@ contract StagedMailbox is IStagedMailbox {
         bytes calldata data
     ) public onlyCoordinator {
         bytes32 key = getKey(srcChainID, block.chainid, sender, receiver, sessionId, label);
-        if (createdKeys[key]) {
+        if (isCreatedKey(key)) {
             revert KeyAlreadyExists(key);
         }
 
-        createdKeys[key] = true;
+        setCreatedKey(key);
         inbox[key] = data;
 
         emit InboxMessageAdded(key);
@@ -72,11 +75,11 @@ contract StagedMailbox is IStagedMailbox {
         bytes calldata data
     ) public onlyCoordinator {
         bytes32 key = getKey(block.chainid, destChainID, sender, receiver, sessionId, label);
-        if (createdKeys[key]) {
+        if (isCreatedKey(key)) {
             revert KeyAlreadyExists(key);
         }
 
-        createdKeys[key] = true;
+        setCreatedKey(key);
         outbox[key] = data;
 
         emit OutboxMessageAdded(key);
@@ -89,14 +92,14 @@ contract StagedMailbox is IStagedMailbox {
         bytes calldata label
     ) external returns (bytes memory) {
         bytes32 key = getKey(srcChainID, block.chainid, sender, msg.sender, sessionId, label);
-        if (!createdKeys[key]) {
+        if (!isCreatedKey(key)) {
             revert MessageNotFound(key);
         }
-        if (usedKeys[key]) {
+        if (isKeyUsed(key)) {
             revert MessageAlreadyUsed(key);
         }
 
-        usedKeys[key] = true;
+        setUsedKey(key);
 
         bytes memory data = inbox[key];
         delete inbox[key];
@@ -119,10 +122,10 @@ contract StagedMailbox is IStagedMailbox {
         bytes calldata data
     ) external {
         bytes32 key = getKey(block.chainid, destChainID, msg.sender, receiver, sessionId, label);
-        if (!createdKeys[key]) {
+        if (!isCreatedKey(key)) {
             revert MessageNotFound(key);
         }
-        if (usedKeys[key]) {
+        if (isKeyUsed(key)) {
             revert MessageAlreadyUsed(key);
         }
 
@@ -132,7 +135,7 @@ contract StagedMailbox is IStagedMailbox {
             revert MessageDataMismatch(key);
         }
 
-        usedKeys[key] = true;
+        setUsedKey(key);
         delete outbox[key];
 
         if (outboxRootPerChain[destChainID] == bytes32(0)) {
@@ -167,5 +170,21 @@ contract StagedMailbox is IStagedMailbox {
         if (!success) {
             revert MainCallFailed(data);
         }
+    }
+
+    function setCreatedKey(bytes32 key) internal {
+        keyFlags[key] |= FLAG_CREATED;
+    }
+
+    function isCreatedKey(bytes32 key) public view returns (bool) {
+        return keyFlags[key] & FLAG_CREATED != 0;
+    }
+
+    function setUsedKey(bytes32 key) internal {
+        keyFlags[key] |= FLAG_USED;
+    }
+
+    function isKeyUsed(bytes32 key) public view returns (bool) {
+        return keyFlags[key] & FLAG_USED != 0;
     }
 }

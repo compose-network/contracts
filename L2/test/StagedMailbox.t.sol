@@ -52,8 +52,8 @@ contract StagedMailboxTest is Setup {
 
         key = stagedMailbox.getKey(otherChain, thisChain, messageSender, messageReceiver, 1, "SWAP");
         assertEq(stagedMailbox.inbox(key), "salut", "The message should match");
-        assertTrue(stagedMailbox.createdKeys(key), "Key should be created");
-        assertFalse(stagedMailbox.usedKeys(key), "Key should not be used yet");
+        assertTrue(stagedMailbox.isCreatedKey(key), "Key should be created");
+        assertFalse(stagedMailbox.isKeyUsed(key), "Key should not be used yet");
     }
 
     /// @dev Tests writing a single message to outbox by coordinator
@@ -70,8 +70,8 @@ contract StagedMailboxTest is Setup {
 
         key = stagedMailbox.getKey(thisChain, otherChain, messageSender, messageReceiver, 1, "SWAP");
         assertEq(stagedMailbox.outbox(key), "hello", "The message should match");
-        assertTrue(stagedMailbox.createdKeys(key), "Key should be created");
-        assertFalse(stagedMailbox.usedKeys(key), "Key should not be used yet");
+        assertTrue(stagedMailbox.isCreatedKey(key), "Key should be created");
+        assertFalse(stagedMailbox.isKeyUsed(key), "Key should not be used yet");
     }
 
     /// @dev Tests writing multiple messages to inbox
@@ -141,7 +141,7 @@ contract StagedMailboxTest is Setup {
             "SWAP"
         );
         assertEq(data, "salut", "Should match the read message");
-        assertTrue(stagedMailbox.usedKeys(key), "Key should be marked as used");
+        assertTrue(stagedMailbox.isKeyUsed(key), "Key should be marked as used");
         assertEq(stagedMailbox.inbox(key), "", "Inbox message should be deleted");
         bytes32 expectedRoot = keccak256(abi.encode(bytes32(0), key, "salut"));
         assertEq(stagedMailbox.inboxRootPerChain(otherChain), expectedRoot, "Inbox root should match");
@@ -190,7 +190,7 @@ contract StagedMailboxTest is Setup {
         emit IStagedMailbox.MessageWritten(key);
 
         stagedMailbox.write(otherChain, messageReceiver, 1, "SWAP", "hello");
-        assertTrue(stagedMailbox.usedKeys(key), "Key should be marked as used");
+        assertTrue(stagedMailbox.isKeyUsed(key), "Key should be marked as used");
         assertEq(stagedMailbox.outbox(key), "", "Outbox message should be deleted");
         bytes32 expectedRoot = keccak256(abi.encode(bytes32(0), key, "hello"));
         assertEq(stagedMailbox.outboxRootPerChain(otherChain), expectedRoot, "Outbox root should match");
@@ -267,8 +267,8 @@ contract StagedMailboxTest is Setup {
 
         assertEq(stagedMailbox.inbox(inboxKey), "salut", "Inbox message should be set");
         assertEq(stagedMailbox.outbox(outboxKey), "hello", "Outbox message should be set");
-        assertTrue(stagedMailbox.createdKeys(inboxKey), "Inbox key should be created");
-        assertTrue(stagedMailbox.createdKeys(outboxKey), "Outbox key should be created");
+        assertTrue(stagedMailbox.isCreatedKey(inboxKey), "Inbox key should be created");
+        assertTrue(stagedMailbox.isCreatedKey(outboxKey), "Outbox key should be created");
         vm.stopPrank();
     }
 
@@ -352,8 +352,8 @@ contract StagedMailboxTest is Setup {
         stagedMailbox.read(otherChain, messageSender, 1, "MSG");
         
         assertEq(stagedMailbox.inbox(key), "", "Data should be deleted after read");
-        assertTrue(stagedMailbox.createdKeys(key), "Created key should still be true");
-        assertTrue(stagedMailbox.usedKeys(key), "Used key should be true");
+        assertTrue(stagedMailbox.isCreatedKey(key), "Created key should still be true");
+        assertTrue(stagedMailbox.isKeyUsed(key), "Used key should be true");
     }
 
     /// @dev Tests that write properly deletes outbox storage
@@ -368,8 +368,8 @@ contract StagedMailboxTest is Setup {
         stagedMailbox.write(otherChain, messageReceiver, 1, "MSG", "data");
         
         assertEq(stagedMailbox.outbox(key), "", "Data should be deleted after write");
-        assertTrue(stagedMailbox.createdKeys(key), "Created key should still be true");
-        assertTrue(stagedMailbox.usedKeys(key), "Used key should be true");
+        assertTrue(stagedMailbox.isCreatedKey(key), "Created key should still be true");
+        assertTrue(stagedMailbox.isKeyUsed(key), "Used key should be true");
     }
 
     /// @dev Tests that safeExecute reverts don't leave partial state
@@ -406,8 +406,8 @@ contract StagedMailboxTest is Setup {
         bytes32 inboxKey = stagedMailbox.getKey(otherChain, thisChain, messageSender, messageReceiver, 1, "SWAP");
         bytes32 outboxKey = stagedMailbox.getKey(thisChain, otherChain, messageSender, messageReceiver, 2, "SWAP");
         
-        assertFalse(stagedMailbox.createdKeys(inboxKey), "Inbox key should not be created on failure");
-        assertFalse(stagedMailbox.createdKeys(outboxKey), "Outbox key should not be created on failure");
+        assertFalse(stagedMailbox.isCreatedKey(inboxKey), "Inbox key should not be created on failure");
+        assertFalse(stagedMailbox.isKeyUsed(outboxKey), "Outbox key should not be created on failure");
     }
 
     /// @dev Tests safeExecute with empty arrays
@@ -460,7 +460,7 @@ contract StagedMailboxTest is Setup {
             bytes32 inboxKey = stagedMailbox.getKey(
                 otherChain, thisChain, messageSender, messageReceiver, i + 1, bytes(abi.encodePacked("MSG", i))
             );
-            assertTrue(stagedMailbox.createdKeys(inboxKey), "Inbox message should be created");
+            assertTrue(stagedMailbox.isCreatedKey(inboxKey), "Inbox message should be created");
         }
     }
 
@@ -690,7 +690,7 @@ contract StagedMailboxTest is Setup {
         
         // Verify data exists before read
         assertEq(stagedMailbox.inbox(key), data, "Data should exist before read");
-        assertFalse(stagedMailbox.usedKeys(key), "Key should not be used before read");
+        assertFalse(stagedMailbox.isKeyUsed(key), "Key should not be used before read");
         
         vm.prank(messageReceiver);
         bytes memory retrieved = stagedMailbox.read(srcChain, sender, sessionId, label);
@@ -698,8 +698,8 @@ contract StagedMailboxTest is Setup {
         // Verify storage deletion after read
         assertEq(retrieved, data, "Retrieved data should match");
         assertEq(stagedMailbox.inbox(key), "", "Inbox storage should be deleted after read");
-        assertTrue(stagedMailbox.createdKeys(key), "Created key flag should persist");
-        assertTrue(stagedMailbox.usedKeys(key), "Used key flag should be set");
+        assertTrue(stagedMailbox.isCreatedKey(key), "Created key flag should persist");
+        assertTrue(stagedMailbox.isKeyUsed(key), "Used key flag should be set");
     }
 
     /// @dev Fuzz test that write properly deletes outbox storage
@@ -720,15 +720,15 @@ contract StagedMailboxTest is Setup {
         
         // Verify data exists before write
         assertEq(stagedMailbox.outbox(key), data, "Data should exist before write");
-        assertFalse(stagedMailbox.usedKeys(key), "Key should not be used before write");
+        assertFalse(stagedMailbox.isKeyUsed(key), "Key should not be used before write");
         
         vm.prank(messageSender);
         stagedMailbox.write(destChain, receiver, sessionId, label, data);
         
         // Verify storage deletion after write
         assertEq(stagedMailbox.outbox(key), "", "Outbox storage should be deleted after write");
-        assertTrue(stagedMailbox.createdKeys(key), "Created key flag should persist");
-        assertTrue(stagedMailbox.usedKeys(key), "Used key flag should be set");
+        assertTrue(stagedMailbox.isCreatedKey(key), "Created key flag should persist");
+        assertTrue(stagedMailbox.isKeyUsed(key), "Used key flag should be set");
     }
 
     /// @dev Fuzz test that chainIDsInbox only adds each chain once

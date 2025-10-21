@@ -56,9 +56,6 @@ interface IStagedMailbox {
     function inbox(bytes32 key) external view returns (bytes memory);
     function outbox(bytes32 key) external view returns (bytes memory);
 
-    function createdKeys(bytes32 key) external view returns (bool);
-    function usedKeys(bytes32 key) external view returns (bool);
-
     function getKey(
         uint256 srcChainID,
         uint256 destChainID,
