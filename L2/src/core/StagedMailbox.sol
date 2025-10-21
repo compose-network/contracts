@@ -125,13 +125,14 @@ contract StagedMailbox is IStagedMailbox {
         if (usedKeys[key]) {
             revert MessageAlreadyUsed(key);
         }
-        if (keccak256(outbox[key]) != keccak256(data)) {
+
+        bytes memory stored = outbox[key];
+
+        if (keccak256(stored) != keccak256(data)) {
             revert MessageDataMismatch(key);
         }
 
         usedKeys[key] = true;
-
-        bytes memory stored = outbox[key];
         delete outbox[key];
 
         if (outboxRootPerChain[destChainID] == bytes32(0)) {
