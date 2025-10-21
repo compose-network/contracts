@@ -18,12 +18,16 @@ contract StagedMailbox is IStagedMailbox {
     uint256[] public chainIDsOutbox;
 
     modifier onlyCoordinator() {
-        if (msg.sender != COORDINATOR) revert OnlyCoordinatorAllowed();
+        if (msg.sender != COORDINATOR) {
+            revert OnlyCoordinatorAllowed();
+        }
         _;
     }
 
     constructor(address _coordinator) {
-        if (_coordinator == address(0)) revert OnlyCoordinatorAllowed();
+        if (_coordinator == address(0)) {
+            revert ZeroAddress();
+        }
         COORDINATOR = _coordinator;
     }
 

@@ -14,6 +14,7 @@ interface IStagedMailbox {
     error OnlyCoordinatorAllowed();
     error TooManyMessages();
     error MainCallFailed(bytes data);
+    error ZeroAddress();
 
     event InboxMessageAdded(bytes32 indexed key);
     event OutboxMessageAdded(bytes32 indexed key);
