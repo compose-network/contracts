@@ -317,6 +317,542 @@ contract StagedMailboxTest is Setup {
             "Different labels should give different keys"
         );
     }
+
+    /// @dev Tests that duplicate keys in putInbox are rejected
+    function testPutInboxDuplicateKeyReverts() public {
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putInbox(otherChain, messageSender, messageReceiver, 1, "SWAP", "data1");
+        
+        bytes32 key = stagedMailbox.getKey(otherChain, thisChain, messageSender, messageReceiver, 1, "SWAP");
+        vm.expectRevert(abi.encodeWithSelector(IStagedMailbox.KeyAlreadyExists.selector, key));
+        stagedMailbox.putInbox(otherChain, messageSender, messageReceiver, 1, "SWAP", "data2");
+        vm.stopPrank();
+    }
+
+    /// @dev Tests that duplicate keys in putOutbox are rejected
+    function testPutOutboxDuplicateKeyReverts() public {
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putOutbox(otherChain, messageSender, messageReceiver, 1, "SWAP", "data1");
+        
+        bytes32 key = stagedMailbox.getKey(thisChain, otherChain, messageSender, messageReceiver, 1, "SWAP");
+        vm.expectRevert(abi.encodeWithSelector(IStagedMailbox.KeyAlreadyExists.selector, key));
+        stagedMailbox.putOutbox(otherChain, messageSender, messageReceiver, 1, "SWAP", "data2");
+        vm.stopPrank();
+    }
+
+    /// @dev Tests that read properly deletes inbox storage
+    function testReadDeletesInboxStorage() public {
+        vm.prank(COORDINATOR);
+        stagedMailbox.putInbox(otherChain, messageSender, messageReceiver, 1, "MSG", "data");
+        
+        bytes32 key = stagedMailbox.getKey(otherChain, thisChain, messageSender, messageReceiver, 1, "MSG");
+        assertEq(stagedMailbox.inbox(key), "data", "Data should exist before read");
+        
+        vm.prank(messageReceiver);
+        stagedMailbox.read(otherChain, messageSender, 1, "MSG");
+        
+        assertEq(stagedMailbox.inbox(key), "", "Data should be deleted after read");
+        assertTrue(stagedMailbox.createdKeys(key), "Created key should still be true");
+        assertTrue(stagedMailbox.usedKeys(key), "Used key should be true");
+    }
+
+    /// @dev Tests that write properly deletes outbox storage
+    function testWriteDeletesOutboxStorage() public {
+        vm.prank(COORDINATOR);
+        stagedMailbox.putOutbox(otherChain, messageSender, messageReceiver, 1, "MSG", "data");
+        
+        bytes32 key = stagedMailbox.getKey(thisChain, otherChain, messageSender, messageReceiver, 1, "MSG");
+        assertEq(stagedMailbox.outbox(key), "data", "Data should exist before write");
+        
+        vm.prank(messageSender);
+        stagedMailbox.write(otherChain, messageReceiver, 1, "MSG", "data");
+        
+        assertEq(stagedMailbox.outbox(key), "", "Data should be deleted after write");
+        assertTrue(stagedMailbox.createdKeys(key), "Created key should still be true");
+        assertTrue(stagedMailbox.usedKeys(key), "Used key should be true");
+    }
+
+    /// @dev Tests that safeExecute reverts don't leave partial state
+    function testSafeExecuteFailureLeavesNoPartialState() public {
+        address target = address(new MockTarget());
+        
+        IStagedMailbox.StagedInboxMsg[] memory inboxMsgs = new IStagedMailbox.StagedInboxMsg[](1);
+        inboxMsgs[0] = IStagedMailbox.StagedInboxMsg({
+            srcChainID: otherChain,
+            sender: messageSender,
+            receiver: messageReceiver,
+            sessionId: 1,
+            label: "SWAP",
+            data: "salut"
+        });
+        
+        IStagedMailbox.StagedOutboxMsg[] memory outboxMsgs = new IStagedMailbox.StagedOutboxMsg[](1);
+        outboxMsgs[0] = IStagedMailbox.StagedOutboxMsg({
+            destChainID: otherChain,
+            sender: messageSender,
+            receiver: messageReceiver,
+            sessionId: 2,
+            label: "SWAP",
+            data: "hello"
+        });
+        
+        bytes memory failTxData = abi.encodeWithSignature("fail()");
+        
+        vm.prank(COORDINATOR);
+        vm.expectRevert();
+        stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, failTxData);
+        
+        // Verify no messages were stored due to revert
+        bytes32 inboxKey = stagedMailbox.getKey(otherChain, thisChain, messageSender, messageReceiver, 1, "SWAP");
+        bytes32 outboxKey = stagedMailbox.getKey(thisChain, otherChain, messageSender, messageReceiver, 2, "SWAP");
+        
+        assertFalse(stagedMailbox.createdKeys(inboxKey), "Inbox key should not be created on failure");
+        assertFalse(stagedMailbox.createdKeys(outboxKey), "Outbox key should not be created on failure");
+    }
+
+    /// @dev Tests safeExecute with empty arrays
+    function testSafeExecuteEmptyArrays() public {
+        address target = address(new MockTarget());
+        IStagedMailbox.StagedInboxMsg[] memory inboxMsgs = new IStagedMailbox.StagedInboxMsg[](0);
+        IStagedMailbox.StagedOutboxMsg[] memory outboxMsgs = new IStagedMailbox.StagedOutboxMsg[](0);
+        bytes memory mainTxData = abi.encodeWithSignature("doSomething()");
+        
+        vm.prank(COORDINATOR);
+        stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, mainTxData);
+        // Should succeed with no state changes
+    }
+
+    /// @dev Tests safeExecute with large batches
+    function testSafeExecuteLargeBatch() public {
+        address target = address(new MockTarget());
+        
+        uint256 batchSize = 10;
+        IStagedMailbox.StagedInboxMsg[] memory inboxMsgs = new IStagedMailbox.StagedInboxMsg[](batchSize);
+        IStagedMailbox.StagedOutboxMsg[] memory outboxMsgs = new IStagedMailbox.StagedOutboxMsg[](batchSize);
+        
+        for (uint256 i = 0; i < batchSize; i++) {
+            inboxMsgs[i] = IStagedMailbox.StagedInboxMsg({
+                srcChainID: otherChain,
+                sender: messageSender,
+                receiver: messageReceiver,
+                sessionId: i + 1,
+                label: bytes(abi.encodePacked("MSG", i)),
+                data: bytes(abi.encodePacked("data", i))
+            });
+            
+            outboxMsgs[i] = IStagedMailbox.StagedOutboxMsg({
+                destChainID: otherChain,
+                sender: messageSender,
+                receiver: messageReceiver,
+                sessionId: i + 100,
+                label: bytes(abi.encodePacked("MSG", i)),
+                data: bytes(abi.encodePacked("data", i))
+            });
+        }
+        
+        bytes memory mainTxData = abi.encodeWithSignature("doSomething()");
+        
+        vm.prank(COORDINATOR);
+        stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, mainTxData);
+        
+        // Verify all messages were stored
+        for (uint256 i = 0; i < batchSize; i++) {
+            bytes32 inboxKey = stagedMailbox.getKey(
+                otherChain, thisChain, messageSender, messageReceiver, i + 1, bytes(abi.encodePacked("MSG", i))
+            );
+            assertTrue(stagedMailbox.createdKeys(inboxKey), "Inbox message should be created");
+        }
+    }
+
+    /// @dev Fuzz test for getKey uniqueness
+    function testFuzz_GetKeyUniqueness(
+        uint256 srcChain,
+        uint256 destChain,
+        address sender,
+        address receiver,
+        uint256 sessionId,
+        bytes calldata label
+    ) public view {
+        bytes32 key = stagedMailbox.getKey(srcChain, destChain, sender, receiver, sessionId, label);
+        assertNotEq(key, bytes32(0), "Key should never be zero");
+    }
+
+    /// @dev Fuzz test for putInbox/read consistency
+    function testFuzz_InboxReadConsistency(
+        uint256 srcChain,
+        address sender,
+        uint256 sessionId,
+        bytes calldata label,
+        bytes calldata data
+    ) public {
+        vm.assume(sender != address(0));
+        vm.assume(sessionId > 0);
+        
+        vm.prank(COORDINATOR);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId, label, data);
+        
+        vm.prank(messageReceiver);
+        bytes memory retrieved = stagedMailbox.read(srcChain, sender, sessionId, label);
+        
+        assertEq(retrieved, data, "Data should match");
+    }
+
+    /// @dev Fuzz test for write data validation
+    function testFuzz_WriteDataValidation(
+        uint256 destChain,
+        uint256 sessionId,
+        bytes calldata label,
+        bytes calldata correctData,
+        bytes calldata wrongData
+    ) public {
+        vm.assume(sessionId > 0);
+        vm.assume(keccak256(correctData) != keccak256(wrongData));
+        
+        vm.prank(COORDINATOR);
+        stagedMailbox.putOutbox(destChain, messageSender, messageReceiver, sessionId, label, correctData);
+        
+        bytes32 key = stagedMailbox.getKey(thisChain, destChain, messageSender, messageReceiver, sessionId, label);
+        
+        vm.prank(messageSender);
+        vm.expectRevert(abi.encodeWithSelector(IStagedMailbox.MessageDataMismatch.selector, key));
+        stagedMailbox.write(destChain, messageReceiver, sessionId, label, wrongData);
+    }
+
+    /// @dev Fuzz test for inbox root calculation accuracy
+    function testFuzz_InboxRootCalculation(
+        uint256 srcChain,
+        address sender,
+        uint256 sessionId,
+        bytes calldata label,
+        bytes calldata data
+    ) public {
+        vm.assume(sender != address(0));
+        vm.assume(sessionId > 0);
+        vm.assume(srcChain != 0);
+        
+        // Store initial root
+        bytes32 initialRoot = stagedMailbox.inboxRootPerChain(srcChain);
+        
+        // Put message in inbox
+        vm.prank(COORDINATOR);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId, label, data);
+        
+        bytes32 key = stagedMailbox.getKey(srcChain, thisChain, sender, messageReceiver, sessionId, label);
+        
+        // Read message
+        vm.prank(messageReceiver);
+        stagedMailbox.read(srcChain, sender, sessionId, label);
+        
+        // Verify root was updated correctly
+        bytes32 expectedRoot = keccak256(abi.encode(initialRoot, key, data));
+        bytes32 actualRoot = stagedMailbox.inboxRootPerChain(srcChain);
+        
+        assertEq(actualRoot, expectedRoot, "Inbox root should be calculated correctly");
+        assertNotEq(actualRoot, initialRoot, "Root should change after read");
+    }
+
+    /// @dev Fuzz test for outbox root calculation accuracy
+    function testFuzz_OutboxRootCalculation(
+        uint256 destChain,
+        address receiver,
+        uint256 sessionId,
+        bytes calldata label,
+        bytes calldata data
+    ) public {
+        vm.assume(receiver != address(0));
+        vm.assume(sessionId > 0);
+        vm.assume(destChain != 0);
+        
+        // Store initial root
+        bytes32 initialRoot = stagedMailbox.outboxRootPerChain(destChain);
+        
+        // Put message in outbox
+        vm.prank(COORDINATOR);
+        stagedMailbox.putOutbox(destChain, messageSender, receiver, sessionId, label, data);
+        
+        bytes32 key = stagedMailbox.getKey(thisChain, destChain, messageSender, receiver, sessionId, label);
+        
+        // Write message
+        vm.prank(messageSender);
+        stagedMailbox.write(destChain, receiver, sessionId, label, data);
+        
+        // Verify root was updated correctly
+        bytes32 expectedRoot = keccak256(abi.encode(initialRoot, key, data));
+        bytes32 actualRoot = stagedMailbox.outboxRootPerChain(destChain);
+        
+        assertEq(actualRoot, expectedRoot, "Outbox root should be calculated correctly");
+        assertNotEq(actualRoot, initialRoot, "Root should change after write");
+    }
+
+    /// @dev Fuzz test for incremental inbox root updates with multiple messages
+    function testFuzz_InboxRootIncremental(
+        uint256 srcChain,
+        address sender,
+        uint256 sessionId1,
+        uint256 sessionId2,
+        bytes calldata data1,
+        bytes calldata data2
+    ) public {
+        vm.assume(sender != address(0));
+        vm.assume(sessionId1 > 0);
+        vm.assume(sessionId2 > 0);
+        vm.assume(sessionId1 != sessionId2);
+        vm.assume(srcChain != 0);
+        
+        // Put two messages
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId1, "MSG1", data1);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId2, "MSG2", data2);
+        vm.stopPrank();
+        
+        bytes32 key1 = stagedMailbox.getKey(srcChain, thisChain, sender, messageReceiver, sessionId1, "MSG1");
+        bytes32 key2 = stagedMailbox.getKey(srcChain, thisChain, sender, messageReceiver, sessionId2, "MSG2");
+        
+        // Read first message
+        vm.prank(messageReceiver);
+        stagedMailbox.read(srcChain, sender, sessionId1, "MSG1");
+        bytes32 rootAfterFirst = stagedMailbox.inboxRootPerChain(srcChain);
+        
+        // Verify first root
+        bytes32 expectedFirstRoot = keccak256(abi.encode(bytes32(0), key1, data1));
+        assertEq(rootAfterFirst, expectedFirstRoot, "First root should match");
+        
+        // Read second message
+        vm.prank(messageReceiver);
+        stagedMailbox.read(srcChain, sender, sessionId2, "MSG2");
+        bytes32 rootAfterSecond = stagedMailbox.inboxRootPerChain(srcChain);
+        
+        // Verify incremental root calculation
+        bytes32 expectedSecondRoot = keccak256(abi.encode(expectedFirstRoot, key2, data2));
+        assertEq(rootAfterSecond, expectedSecondRoot, "Second root should be incremental");
+        assertNotEq(rootAfterFirst, rootAfterSecond, "Roots should differ after second read");
+    }
+
+    /// @dev Fuzz test for outbox root incremental updates with multiple messages
+    function testFuzz_OutboxRootIncremental(
+        uint256 destChain,
+        address receiver,
+        uint256 sessionId1,
+        uint256 sessionId2,
+        bytes calldata data1,
+        bytes calldata data2
+    ) public {
+        vm.assume(receiver != address(0));
+        vm.assume(sessionId1 > 0);
+        vm.assume(sessionId2 > 0);
+        vm.assume(sessionId1 != sessionId2);
+        vm.assume(destChain != 0);
+        
+        // Put two messages
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putOutbox(destChain, messageSender, receiver, sessionId1, "MSG1", data1);
+        stagedMailbox.putOutbox(destChain, messageSender, receiver, sessionId2, "MSG2", data2);
+        vm.stopPrank();
+        
+        bytes32 key1 = stagedMailbox.getKey(thisChain, destChain, messageSender, receiver, sessionId1, "MSG1");
+        bytes32 key2 = stagedMailbox.getKey(thisChain, destChain, messageSender, receiver, sessionId2, "MSG2");
+        
+        // Write first message
+        vm.prank(messageSender);
+        stagedMailbox.write(destChain, receiver, sessionId1, "MSG1", data1);
+        bytes32 rootAfterFirst = stagedMailbox.outboxRootPerChain(destChain);
+        
+        // Verify first root
+        bytes32 expectedFirstRoot = keccak256(abi.encode(bytes32(0), key1, data1));
+        assertEq(rootAfterFirst, expectedFirstRoot, "First root should match");
+        
+        // Write second message
+        vm.prank(messageSender);
+        stagedMailbox.write(destChain, receiver, sessionId2, "MSG2", data2);
+        bytes32 rootAfterSecond = stagedMailbox.outboxRootPerChain(destChain);
+        
+        // Verify incremental root calculation
+        bytes32 expectedSecondRoot = keccak256(abi.encode(expectedFirstRoot, key2, data2));
+        assertEq(rootAfterSecond, expectedSecondRoot, "Second root should be incremental");
+        assertNotEq(rootAfterFirst, rootAfterSecond, "Roots should differ after second write");
+    }
+
+    /// @dev Fuzz test that read properly deletes inbox storage
+    function testFuzz_ReadDeletesInboxStorage(
+        uint256 srcChain,
+        address sender,
+        uint256 sessionId,
+        bytes calldata label,
+        bytes calldata data
+    ) public {
+        vm.assume(sender != address(0));
+        vm.assume(sessionId > 0);
+        
+        vm.prank(COORDINATOR);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId, label, data);
+        
+        bytes32 key = stagedMailbox.getKey(srcChain, thisChain, sender, messageReceiver, sessionId, label);
+        
+        // Verify data exists before read
+        assertEq(stagedMailbox.inbox(key), data, "Data should exist before read");
+        assertFalse(stagedMailbox.usedKeys(key), "Key should not be used before read");
+        
+        vm.prank(messageReceiver);
+        bytes memory retrieved = stagedMailbox.read(srcChain, sender, sessionId, label);
+        
+        // Verify storage deletion after read
+        assertEq(retrieved, data, "Retrieved data should match");
+        assertEq(stagedMailbox.inbox(key), "", "Inbox storage should be deleted after read");
+        assertTrue(stagedMailbox.createdKeys(key), "Created key flag should persist");
+        assertTrue(stagedMailbox.usedKeys(key), "Used key flag should be set");
+    }
+
+    /// @dev Fuzz test that write properly deletes outbox storage
+    function testFuzz_WriteDeletesOutboxStorage(
+        uint256 destChain,
+        address receiver,
+        uint256 sessionId,
+        bytes calldata label,
+        bytes calldata data
+    ) public {
+        vm.assume(receiver != address(0));
+        vm.assume(sessionId > 0);
+        
+        vm.prank(COORDINATOR);
+        stagedMailbox.putOutbox(destChain, messageSender, receiver, sessionId, label, data);
+        
+        bytes32 key = stagedMailbox.getKey(thisChain, destChain, messageSender, receiver, sessionId, label);
+        
+        // Verify data exists before write
+        assertEq(stagedMailbox.outbox(key), data, "Data should exist before write");
+        assertFalse(stagedMailbox.usedKeys(key), "Key should not be used before write");
+        
+        vm.prank(messageSender);
+        stagedMailbox.write(destChain, receiver, sessionId, label, data);
+        
+        // Verify storage deletion after write
+        assertEq(stagedMailbox.outbox(key), "", "Outbox storage should be deleted after write");
+        assertTrue(stagedMailbox.createdKeys(key), "Created key flag should persist");
+        assertTrue(stagedMailbox.usedKeys(key), "Used key flag should be set");
+    }
+
+    /// @dev Fuzz test that chainIDsInbox only adds each chain once
+    function testFuzz_ChainIDsInboxUniqueness(
+        uint256 srcChain,
+        address sender,
+        uint256 sessionId1,
+        uint256 sessionId2,
+        bytes calldata data1,
+        bytes calldata data2
+    ) public {
+        vm.assume(sender != address(0));
+        vm.assume(sessionId1 > 0);
+        vm.assume(sessionId2 > 0);
+        vm.assume(sessionId1 != sessionId2);
+        vm.assume(srcChain != 0);
+        
+        // Put two messages from same source chain
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId1, "MSG1", data1);
+        stagedMailbox.putInbox(srcChain, sender, messageReceiver, sessionId2, "MSG2", data2);
+        vm.stopPrank();
+        
+        // Read both messages
+        vm.startPrank(messageReceiver);
+        stagedMailbox.read(srcChain, sender, sessionId1, "MSG1");
+        stagedMailbox.read(srcChain, sender, sessionId2, "MSG2");
+        vm.stopPrank();
+        
+        // Verify only one chain ID entry exists
+        assertEq(stagedMailbox.chainIDsInbox(0), srcChain, "First chain ID should match");
+        
+        // Attempting to access second element should revert (only one entry)
+        vm.expectRevert();
+        stagedMailbox.chainIDsInbox(1);
+    }
+
+    /// @dev Fuzz test that chainIDsOutbox only adds each chain once
+    function testFuzz_ChainIDsOutboxUniqueness(
+        uint256 destChain,
+        address receiver,
+        uint256 sessionId1,
+        uint256 sessionId2,
+        bytes calldata data1,
+        bytes calldata data2
+    ) public {
+        vm.assume(receiver != address(0));
+        vm.assume(sessionId1 > 0);
+        vm.assume(sessionId2 > 0);
+        vm.assume(sessionId1 != sessionId2);
+        vm.assume(destChain != 0);
+        
+        // Put two messages to same destination chain
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putOutbox(destChain, messageSender, receiver, sessionId1, "MSG1", data1);
+        stagedMailbox.putOutbox(destChain, messageSender, receiver, sessionId2, "MSG2", data2);
+        vm.stopPrank();
+        
+        // Write both messages
+        vm.startPrank(messageSender);
+        stagedMailbox.write(destChain, receiver, sessionId1, "MSG1", data1);
+        stagedMailbox.write(destChain, receiver, sessionId2, "MSG2", data2);
+        vm.stopPrank();
+        
+        // Verify only one chain ID entry exists
+        assertEq(stagedMailbox.chainIDsOutbox(0), destChain, "First chain ID should match");
+        
+        // Attempting to access second element should revert (only one entry)
+        vm.expectRevert();
+        stagedMailbox.chainIDsOutbox(1);
+    }
+
+    /// @dev Fuzz test for root calculations across multiple different chains
+    function testFuzz_MultiChainRootIsolation(
+        uint256 chain1,
+        uint256 chain2,
+        address sender,
+        uint256 sessionId1,
+        uint256 sessionId2,
+        bytes calldata data1,
+        bytes calldata data2
+    ) public {
+        vm.assume(sender != address(0));
+        vm.assume(sessionId1 > 0);
+        vm.assume(sessionId2 > 0);
+        vm.assume(chain1 != 0 && chain2 != 0);
+        vm.assume(chain1 != chain2);
+        
+        // Put messages from different chains
+        vm.startPrank(COORDINATOR);
+        stagedMailbox.putInbox(chain1, sender, messageReceiver, sessionId1, "MSG", data1);
+        stagedMailbox.putInbox(chain2, sender, messageReceiver, sessionId2, "MSG", data2);
+        vm.stopPrank();
+        
+        // Read both messages
+        vm.startPrank(messageReceiver);
+        stagedMailbox.read(chain1, sender, sessionId1, "MSG");
+        stagedMailbox.read(chain2, sender, sessionId2, "MSG");
+        vm.stopPrank();
+        
+        // Verify each chain has its own root
+        bytes32 root1 = stagedMailbox.inboxRootPerChain(chain1);
+        bytes32 root2 = stagedMailbox.inboxRootPerChain(chain2);
+        
+        assertNotEq(root1, bytes32(0), "Chain 1 root should be set");
+        assertNotEq(root2, bytes32(0), "Chain 2 root should be set");
+        assertNotEq(root1, root2, "Different chains should have different roots");
+        
+        // Verify chain IDs array contains both chains
+        bool foundChain1 = false;
+        bool foundChain2 = false;
+        
+        if (stagedMailbox.chainIDsInbox(0) == chain1 || stagedMailbox.chainIDsInbox(0) == chain2) {
+            foundChain1 = (stagedMailbox.chainIDsInbox(0) == chain1);
+            foundChain2 = (stagedMailbox.chainIDsInbox(0) == chain2);
+        }
+        
+        if (stagedMailbox.chainIDsInbox(1) == chain1 || stagedMailbox.chainIDsInbox(1) == chain2) {
+            foundChain1 = foundChain1 || (stagedMailbox.chainIDsInbox(1) == chain1);
+            foundChain2 = foundChain2 || (stagedMailbox.chainIDsInbox(1) == chain2);
+        }
+        
+        assertTrue(foundChain1 && foundChain2, "Both chain IDs should be recorded");
+    }
 }
 
 contract MockTarget {
