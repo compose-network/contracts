@@ -2,8 +2,9 @@
 pragma solidity 0.8.30;
 
 import { IStagedMailbox } from "./interfaces/IStagedMailbox.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
-contract StagedMailbox is IStagedMailbox {
+contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
     uint8 internal constant FLAG_CREATED = 0x01;
     uint8 internal constant FLAG_USED = 0x02;
 
@@ -152,7 +153,7 @@ contract StagedMailbox is IStagedMailbox {
         StagedOutboxMsg[] calldata stagedOutboxMsgs,
         address target,
         bytes calldata mainTxData
-    ) external onlyCoordinator {
+    ) external nonReentrant onlyCoordinator {
         uint256 inLen = stagedInboxMsgs.length;
         uint256 outLen = stagedOutboxMsgs.length;
 
