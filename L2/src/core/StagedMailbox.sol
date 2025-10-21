@@ -43,6 +43,10 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         uint256 sessionId,
         bytes calldata label
     ) public pure returns (bytes32 key) {
+        if (sender == address(0) || receiver == address(0)) {
+            revert ZeroAddress();
+        }
+
         key = keccak256(
             abi.encodePacked(srcChainID, destChainID, sender, receiver, sessionId, label)
         );
