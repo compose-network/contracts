@@ -21,13 +21,6 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
     uint256[] public chainIDsInbox;
     uint256[] public chainIDsOutbox;
 
-    modifier onlyCoordinator() {
-        if (msg.sender != COORDINATOR) {
-            revert OnlyCoordinatorAllowed();
-        }
-        _;
-    }
-
     constructor(address _coordinator) {
         if (_coordinator == address(0)) {
             revert ZeroAddress();
@@ -59,7 +52,8 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         uint256 sessionId,
         bytes calldata label,
         bytes calldata data
-    ) public onlyCoordinator {
+    ) public {
+        _onlyCoordinator();
         bytes32 key = getKey(srcChainID, block.chainid, sender, receiver, sessionId, label);
         if (isCreatedKey(key)) {
             revert KeyAlreadyExists(key);
@@ -78,7 +72,8 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         uint256 sessionId,
         bytes calldata label,
         bytes calldata data
-    ) public onlyCoordinator {
+    ) public {
+        _onlyCoordinator();
         bytes32 key = getKey(block.chainid, destChainID, sender, receiver, sessionId, label);
         if (isCreatedKey(key)) {
             revert KeyAlreadyExists(key);
@@ -157,7 +152,8 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         StagedOutboxMsg[] calldata stagedOutboxMsgs,
         address target,
         bytes calldata mainTxData
-    ) external nonReentrant onlyCoordinator {
+    ) external nonReentrant {
+        _onlyCoordinator();
         uint256 inLen = stagedInboxMsgs.length;
         uint256 outLen = stagedOutboxMsgs.length;
 
@@ -174,6 +170,12 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         (bool success, bytes memory data) = target.call(mainTxData);
         if (!success) {
             revert MainCallFailed(data);
+        }
+    }
+
+    function _onlyCoordinator() internal {
+        if (msg.sender != COORDINATOR) {
+            revert OnlyCoordinatorAllowed();
         }
     }
 
