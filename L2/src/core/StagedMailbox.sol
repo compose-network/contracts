@@ -52,7 +52,7 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         bytes calldata label,
         bytes calldata data
     ) public {
-        _onlyCoordinator();
+        onlyCoordinator();
         bytes32 key = getKey(srcChainID, block.chainid, sender, receiver, sessionId, label);
         if (isCreatedKey(key)) {
             revert KeyAlreadyExists(key);
@@ -72,7 +72,7 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         bytes calldata label,
         bytes calldata data
     ) public {
-        _onlyCoordinator();
+        onlyCoordinator();
         bytes32 key = getKey(block.chainid, destChainID, sender, receiver, sessionId, label);
         if (isCreatedKey(key)) {
             revert KeyAlreadyExists(key);
@@ -152,7 +152,7 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         address target,
         bytes calldata mainTxData
     ) external nonReentrant {
-        _onlyCoordinator();
+        onlyCoordinator();
         uint256 inLen = stagedInboxMsgs.length;
         uint256 outLen = stagedOutboxMsgs.length;
 
@@ -172,7 +172,7 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         }
     }
 
-    function _onlyCoordinator() internal {
+    function onlyCoordinator() internal view {
         if (msg.sender != COORDINATOR) {
             revert OnlyCoordinatorAllowed();
         }

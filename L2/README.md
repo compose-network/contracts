@@ -7,7 +7,8 @@ Cross-rollup messaging, bridging, and DEX contracts for L2 execution layers.
 This project contains L2 contracts organized into two main modules:
 
 ### Core Contracts (Cross-Rollup Communication)
-- **Mailbox** - Cross-rollup message handling
+- **Mailbox** - Cross-rollup message handling (for native rollups)
+- **StagedMailbox** - Modified mailbox for external rollups (pre-populated messages)
 - **PingPong** - Cross-rollup message demo
 - **Bridge** - Asset bridging between rollups
 - **BridgeableToken** - Token with cross-rollup support
@@ -17,6 +18,14 @@ This project contains L2 contracts organized into two main modules:
 - **USDCMintable** - USDC token (18 decimals)
 - **WETH9** - Wrapped Ether (18 decimals)
 - **USDC_SSV_WETH_Swapper** - Simple 3-token swapper with 0.3% fee
+
+## 🔄 Mailbox vs StagedMailbox
+
+The L2 contracts include two types of mailbox contracts:
+
+- **Mailbox**: Standard cross-rollup message handling for **native rollups** within the Compose network. Messages are directly written and read during transaction execution.
+
+- **StagedMailbox**: Modified mailbox for **external rollups** outside the Compose network. All messages are pre-populated by the Wrapped Sequencer (WS) before transaction execution, enabling atomic cross-domain composability. See the Cross-Domain Composability Protocol (CDCP) for details.
 
 ## 🚀 Quick Start
 
@@ -147,11 +156,12 @@ just check-swap-price <net> <in> <out> <amt> # Check swap price
 
 **Core Contracts**
 ```bash
-just verify-all <network>                        # Verify all core contracts
-just verify-mailbox <net> <addr> <coordinator>   # Verify Mailbox
-just verify-pingpong <net> <addr> <mailbox>      # Verify PingPong
-just verify-bridge <net> <addr> <mailbox>        # Verify Bridge
-just verify-token <net> <addr> <bridge>          # Verify BridgeableToken
+just verify-all <network>                              # Verify all core contracts
+just verify-mailbox <net> <addr> <coordinator>         # Verify Mailbox
+just verify-staged-mailbox <net> <addr> <coordinator>  # Verify StagedMailbox
+just verify-pingpong <net> <addr> <mailbox>            # Verify PingPong
+just verify-bridge <net> <addr> <mailbox>              # Verify Bridge
+just verify-token <net> <addr> <bridge>                # Verify BridgeableToken
 ```
 
 **DEX Contracts**
@@ -165,10 +175,11 @@ just verify-swapper <net> <addr> <weth> <usdc> <ssv>  # Verify Swapper
 
 ### Contract Queries (Core)
 ```bash
-just get-mailbox <network>   # Get Mailbox address
-just get-pingpong <network>  # Get PingPong address
-just get-bridge <network>    # Get Bridge address
-just get-token <network>     # Get Token address
+just get-mailbox <network>         # Get Mailbox address
+just get-staged-mailbox <network>  # Get StagedMailbox address
+just get-pingpong <network>        # Get PingPong address
+just get-bridge <network>          # Get Bridge address
+just get-token <network>           # Get Token address
 ```
 
 ## 📁 Project Structure
@@ -179,10 +190,12 @@ L2/
 │   ├── core/                          # Core L2 contracts
 │   │   ├── interfaces/
 │   │   │   ├── IMailbox.sol
+│   │   │   ├── IStagedMailbox.sol
 │   │   │   ├── IBridge.sol
 │   │   │   ├── IPingPong.sol
 │   │   │   └── IBridgeableToken.sol
 │   │   ├── Mailbox.sol
+│   │   ├── StagedMailbox.sol
 │   │   ├── Bridge.sol
 │   │   ├── PingPong.sol
 │   │   └── BridgeableToken.sol
@@ -316,6 +329,7 @@ The `deployments.json` file tracks both core and DEX deployments:
   "rollup-a": {
     "contracts": {
       "Mailbox": "0x...",
+      "StagedMailbox": "0x...",
       "Bridge": "0x...",
       "PingPong": "0x...",
       "BridgeableToken": "0x..."
