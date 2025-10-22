@@ -2,6 +2,15 @@
 
 Quick guide to deploy cross-rollup messaging contracts to your L2 networks.
 
+## Mailbox Types
+
+This project includes two types of mailbox contracts:
+
+- **Mailbox**: For native rollups within the Compose network
+- **StagedMailbox**: For external rollups outside the Compose network (requires coordinator pre-population)
+
+Both are deployed by default. See [Cross-Domain Composability Protocol](../cross_domain_protocol.md) for details.
+
 ## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) installed
@@ -123,6 +132,7 @@ just get-deployment rollup-a
 
 # Get specific contract address
 just get-mailbox rollup-a
+just get-staged-mailbox rollup-a
 just get-bridge rollup-a
 just get-pingpong rollup-a
 just get-token rollup-a
@@ -138,6 +148,7 @@ just verify-all rollup-a
 
 # Or verify individual contracts
 just verify-mailbox rollup-a <address> <coordinator>
+just verify-staged-mailbox rollup-a <address> <coordinator>
 just verify-pingpong rollup-a <address> <mailbox>
 just verify-bridge rollup-a <address> <mailbox>
 just verify-token rollup-a <address>

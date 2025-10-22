@@ -34,6 +34,7 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Extract contract addresses
 MAILBOX=$(jq -r '.addresses.Mailbox' "$ARTIFACT_FILE")
+STAGED_MAILBOX=$(jq -r '.addresses.StagedMailbox' "$ARTIFACT_FILE")
 PINGPONG=$(jq -r '.addresses.PingPong' "$ARTIFACT_FILE")
 BRIDGE=$(jq -r '.addresses.Bridge' "$ARTIFACT_FILE")
 TOKEN=$(jq -r '.addresses.BridgeableToken' "$ARTIFACT_FILE")
@@ -45,6 +46,7 @@ jq --arg network "$NETWORK" \
    --argjson deployment_block "$DEPLOYMENT_BLOCK" \
    --arg timestamp "$TIMESTAMP" \
    --arg mailbox "$MAILBOX" \
+   --arg staged_mailbox "$STAGED_MAILBOX" \
    --arg pingpong "$PINGPONG" \
    --arg bridge "$BRIDGE" \
    --arg token "$TOKEN" \
@@ -55,6 +57,7 @@ jq --arg network "$NETWORK" \
      "timestamp": $timestamp,
      "contracts": {
        "Mailbox": $mailbox,
+       "StagedMailbox": $staged_mailbox,
        "PingPong": $pingpong,
        "Bridge": $bridge,
        "BridgeableToken": $token,

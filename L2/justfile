@@ -157,6 +157,7 @@ verify-all NETWORK:
     
     # Get contract addresses from deployments.json
     MAILBOX=$(jq -r '.["{{NETWORK}}"].contracts.Mailbox // empty' deployments.json 2>/dev/null)
+    STAGED_MAILBOX=$(jq -r '.["{{NETWORK}}"].contracts.StagedMailbox // empty' deployments.json 2>/dev/null)
     PINGPONG=$(jq -r '.["{{NETWORK}}"].contracts.PingPong // empty' deployments.json 2>/dev/null)
     BRIDGE=$(jq -r '.["{{NETWORK}}"].contracts.Bridge // empty' deployments.json 2>/dev/null)
     TOKEN=$(jq -r '.["{{NETWORK}}"].contracts.BridgeableToken // empty' deployments.json 2>/dev/null)
@@ -172,6 +173,11 @@ verify-all NETWORK:
     echo ""
     echo "Verifying Mailbox at $MAILBOX..."
     just verify-mailbox {{NETWORK}} "$MAILBOX" "$COORDINATOR" || true
+    
+    # Verify StagedMailbox
+    echo ""
+    echo "Verifying StagedMailbox at $STAGED_MAILBOX..."
+    just verify-staged-mailbox {{NETWORK}} "$STAGED_MAILBOX" "$COORDINATOR" || true
     
     # Verify PingPong
     echo ""
@@ -205,6 +211,19 @@ verify-mailbox NETWORK ADDRESS COORDINATOR:
         --constructor-args $(cast abi-encode "constructor(address)" {{COORDINATOR}}) \
         {{ADDRESS}} \
         src/core/Mailbox.sol:Mailbox
+
+# Verify StagedMailbox contract
+verify-staged-mailbox NETWORK ADDRESS COORDINATOR:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/parse-network.sh {{NETWORK}}
+    forge verify-contract \
+        --rpc-url "$NETWORK_EXPLORER_URL" \
+        --verifier blockscout \
+        --verifier-url "$NETWORK_EXPLORER_API_URL" \
+        --constructor-args $(cast abi-encode "constructor(address)" {{COORDINATOR}}) \
+        {{ADDRESS}} \
+        src/core/StagedMailbox.sol:StagedMailbox
 
 # Verify PingPong contract
 verify-pingpong NETWORK ADDRESS MAILBOX:
@@ -263,7 +282,7 @@ verify-all-dex NETWORK:
     WETH=$(jq -r '.["{{NETWORK}}"].dex.WETH // empty' deployments.json 2>/dev/null)
     USDC=$(jq -r '.["{{NETWORK}}"].dex.USDC // empty' deployments.json 2>/dev/null)
     SSV=$(jq -r '.["{{NETWORK}}"].dex.SSV // empty' deployments.json 2>/dev/null)
-    SWAPPER=$(jq -r '.["{{NETWORK}}"].dex.Swapper // empty' deployments.json 2>/dev/null)
+    SWAPPER=$(jq -r '.["{{NETWORK}}"].dex.Swapper // empty' deployments.json)
     
     if [ -z "$WETH" ]; then
         echo "Error: No DEX deployment found for {{NETWORK}}"
@@ -357,6 +376,10 @@ verify-swapper NETWORK ADDRESS WETH USDC SSV:
 # Get Mailbox address for network
 get-mailbox NETWORK:
     @jq -r '.["{{NETWORK}}"].contracts.Mailbox // "Not deployed"' deployments.json 2>/dev/null || echo "deployments.json not found"
+
+# Get StagedMailbox address for network
+get-staged-mailbox NETWORK:
+    @jq -r '.["{{NETWORK}}"].contracts.StagedMailbox // "Not deployed"' deployments.json 2>/dev/null || echo "deployments.json not found"
 
 # Get PingPong address for network
 get-pingpong NETWORK:
