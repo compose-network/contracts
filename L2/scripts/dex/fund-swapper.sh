@@ -84,11 +84,6 @@ if [ -z "${SSV_ADDRESS:-}" ] || [ "$SSV_ADDRESS" == "null" ]; then
     exit 1
 fi
 
-# Export addresses so forge script can access them
-export WETH_ADDRESS
-export USDC_ADDRESS
-export SSV_ADDRESS
-
 echo "========================================="
 echo "Funding Swapper on $NETWORK_NAME"
 echo "========================================="
@@ -124,8 +119,11 @@ if [ $# -eq 1 ]; then
         --rpc-url "$NETWORK_RPC_URL" \
         --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
-        --sig "runDefault(address)" \
+        --sig "runDefault(address,address,address,address)" \
         "$SWAPPER_ADDRESS" \
+        "$WETH_ADDRESS" \
+        "$USDC_ADDRESS" \
+        "$SSV_ADDRESS" \
         2>&1 | tee "logs/funding-swapper-${NETWORK}.log"
 else
     # Use custom amounts
@@ -134,8 +132,11 @@ else
         --rpc-url "$NETWORK_RPC_URL" \
         --private-key "$DEPLOYER_PRIVATE_KEY" \
         --broadcast \
-        --sig "run(address,uint256,uint256,uint256)" \
+        --sig "run(address,address,address,address,uint256,uint256,uint256)" \
         "$SWAPPER_ADDRESS" \
+        "$WETH_ADDRESS" \
+        "$USDC_ADDRESS" \
+        "$SSV_ADDRESS" \
         "$WETH_WEI" \
         "$USDC_WEI" \
         "$SSV_WEI" \
