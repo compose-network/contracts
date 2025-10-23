@@ -150,11 +150,12 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
         StagedInboxMsg[] calldata stagedInboxMsgs,
         StagedOutboxMsg[] calldata stagedOutboxMsgs,
         address target,
-        bytes calldata mainTxData
+        bytes[] calldata mainTxsData
     ) external nonReentrant {
         onlyCoordinator();
         uint256 inLen = stagedInboxMsgs.length;
         uint256 outLen = stagedOutboxMsgs.length;
+        uint256 txLen = mainTxsData.length;
 
         for (uint256 i = 0; i < inLen; i++) {
             StagedInboxMsg calldata m = stagedInboxMsgs[i];
@@ -166,9 +167,11 @@ contract StagedMailbox is ReentrancyGuardTransient, IStagedMailbox {
             putOutbox(m.destChainID, m.sender, m.receiver, m.sessionId, m.label, m.data);
         }
 
-        (bool success, bytes memory data) = target.call(mainTxData);
-        if (!success) {
-            revert MainCallFailed(data);
+        for (uint256 i = 0; i < txLen; i++) {
+            (bool success, bytes memory data) = target.call(mainTxsData[i]);
+            if (!success) {
+                revert MainCallFailed(data);
+            }
         }
     }
 

@@ -102,6 +102,6 @@ interface IStagedMailbox {
         StagedInboxMsg[] calldata stagedInboxMsgs,
         StagedOutboxMsg[] calldata stagedOutboxMsgs,
         address target,
-        bytes calldata mainTxData
+        bytes[] calldata mainTxsData
     ) external;
 }
