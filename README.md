@@ -60,6 +60,10 @@ just deploy-network rollup-a
 
 ## 🚀 Getting Started
 
+### Important for new deployments
+
+To perform a new deployment, open a new PR with the updated `deployments.json` file. Please specify unique network names.
+
 ### Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
@@ -151,7 +155,7 @@ MIT License - see individual project LICENSE files for details.
 
 ## 🤝 Contributing
 
-Contributions welcome! Please see individual project READMEs for specific contribution guidelines.
+Contributions welcome! Please open an issue or a pull request.
 
 ## 📞 Support
 
