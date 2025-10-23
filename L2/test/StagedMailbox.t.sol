@@ -12,6 +12,8 @@ contract StagedMailboxTest is Setup {
     address internal messageSender = address(0xabc);
     address internal messageReceiver = address(0x123);
 
+    bytes[] internal mainTxData;
+
     /// @dev Tests constructor sets coordinator correctly and reverts for zero address
     function testConstructor() public {
         assertEq(
@@ -248,7 +250,7 @@ contract StagedMailboxTest is Setup {
             data: "hello"
         });
 
-        bytes memory mainTxData = abi.encodeWithSignature("doSomething()");
+        mainTxData.push(abi.encodeWithSignature("doSomething()"));
 
         vm.startPrank(COORDINATOR);
         vm.expectEmit(true, false, false, true);
@@ -277,7 +279,7 @@ contract StagedMailboxTest is Setup {
         address target = address(new MockTarget());
         IStagedMailbox.StagedInboxMsg[] memory inboxMsgs = new IStagedMailbox.StagedInboxMsg[](0);
         IStagedMailbox.StagedOutboxMsg[] memory outboxMsgs = new IStagedMailbox.StagedOutboxMsg[](0);
-        bytes memory mainTxData = abi.encodeWithSignature("fail()");
+        mainTxData.push(abi.encodeWithSignature("fail()"));
 
         vm.prank(COORDINATOR);
         vm.expectRevert();
@@ -395,12 +397,12 @@ contract StagedMailboxTest is Setup {
             label: "SWAP",
             data: "hello"
         });
-        
-        bytes memory failTxData = abi.encodeWithSignature("fail()");
+
+        mainTxData.push(abi.encodeWithSignature("fail()"));
         
         vm.prank(COORDINATOR);
         vm.expectRevert();
-        stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, failTxData);
+        stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, mainTxData);
         
         // Verify no messages were stored due to revert
         bytes32 inboxKey = stagedMailbox.getKey(otherChain, thisChain, messageSender, messageReceiver, 1, "SWAP");
@@ -415,7 +417,7 @@ contract StagedMailboxTest is Setup {
         address target = address(new MockTarget());
         IStagedMailbox.StagedInboxMsg[] memory inboxMsgs = new IStagedMailbox.StagedInboxMsg[](0);
         IStagedMailbox.StagedOutboxMsg[] memory outboxMsgs = new IStagedMailbox.StagedOutboxMsg[](0);
-        bytes memory mainTxData = abi.encodeWithSignature("doSomething()");
+        mainTxData.push(abi.encodeWithSignature("doSomething()"));
         
         vm.prank(COORDINATOR);
         stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, mainTxData);
@@ -449,8 +451,8 @@ contract StagedMailboxTest is Setup {
                 data: bytes(abi.encodePacked("data", i))
             });
         }
-        
-        bytes memory mainTxData = abi.encodeWithSignature("doSomething()");
+
+        mainTxData.push(abi.encodeWithSignature("doSomething()"));
         
         vm.prank(COORDINATOR);
         stagedMailbox.safeExecute(inboxMsgs, outboxMsgs, target, mainTxData);
