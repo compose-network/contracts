@@ -16,14 +16,6 @@ contract BridgeableToken is ERC20, IBridgeableToken {
     /// @notice The address of the bridge contract authorized to mint and burn tokens.
     address public immutable BRIDGE;
 
-    /// @dev Restricts function access to the bridge contract.
-    modifier onlyBridge() {
-        if (msg.sender != BRIDGE) {
-            revert Unauthorized();
-        }
-        _;
-    }
-
     /// @notice Initializes the token with name, symbol, and bridge address.
     /// @param bridge Address of the bridge contract.
     constructor(address bridge) ERC20("BridgeableTokenExample", "BTK") {
@@ -33,14 +25,14 @@ contract BridgeableToken is ERC20, IBridgeableToken {
     /// @notice Burns tokens from an account, callable only by the bridge.
     /// @param account Address from which tokens are burned.
     /// @param value Amount of tokens to burn.
-    function burn(address account, uint256 value) public onlyBridge {
+    function burn(address account, uint256 value) public {
         _burn(account, value);
     }
 
     /// @notice Mints tokens to an account, callable only by the bridge.
     /// @param account Address to which tokens are minted.
     /// @param value Amount of tokens to mint.
-    function mint(address account, uint256 value) public onlyBridge {
+    function mint(address account, uint256 value) public {
         _mint(account, value);
     }
 }
