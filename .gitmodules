@@ -4,7 +4,7 @@
 [submodule "L1-settlement/lib/optimism"]
 	path = L1-settlement/lib/optimism
 	url = https://github.com/ethereum-optimism/optimism
-	branch = op-deployer/v0.3.3
+	branch = op-deployer/v0.4.5
 [submodule "L1-settlement/lib/lib-keccak"]
 	path = L1-settlement/lib/lib-keccak
 	url = https://github.com/ethereum-optimism/lib-keccak

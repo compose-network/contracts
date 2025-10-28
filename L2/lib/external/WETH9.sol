@@ -7,18 +7,32 @@ pragma solidity 0.8.30;
 contract WETH9 {
     string public name = "Wrapped Ether";
     string public symbol = "WETH";
-    uint8  public decimals = 18;
+    uint8 public decimals = 18;
 
     event Approval(address indexed src, address indexed guy, uint256 wad);
     event Transfer(address indexed src, address indexed dst, uint256 wad);
     event Deposit(address indexed dst, uint256 wad);
     event Withdrawal(address indexed src, uint256 wad);
 
-    mapping(address => uint256)                       public  balanceOf;
-    mapping(address => mapping(address => uint256))   public  allowance;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
-    receive() external payable { deposit(); }
-    fallback() external payable { deposit(); }
+    error ERC20InsufficientBalance(
+        address from,
+        uint256 fromBalance,
+        uint256 value
+    );
+
+    error ERC20InvalidReceiver(address receiver);
+    error ERC20InvalidSender(address sender);   
+
+    receive() external payable {
+        deposit();
+    }
+
+    fallback() external payable {
+        deposit();
+    }
 
     function deposit() public payable {
         balanceOf[msg.sender] = balanceOf[msg.sender] + msg.value;
@@ -28,7 +42,7 @@ contract WETH9 {
     function withdraw(uint256 wad) public {
         require(balanceOf[msg.sender] >= wad, "insufficient");
         balanceOf[msg.sender] = balanceOf[msg.sender] - wad;
-        (bool ok, ) = msg.sender.call{value: wad}("");
+        (bool ok, ) = msg.sender.call{ value: wad }("");
         require(ok, "ETH transfer failed");
         emit Withdrawal(msg.sender, wad);
     }
@@ -47,9 +61,15 @@ contract WETH9 {
         return transferFrom(msg.sender, dst, wad);
     }
 
-    function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
+    function transferFrom(
+        address src,
+        address dst,
+        uint256 wad
+    ) public returns (bool) {
         require(balanceOf[src] >= wad, "balance");
-        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
+        if (
+            src != msg.sender && allowance[src][msg.sender] != type(uint256).max
+        ) {
             require(allowance[src][msg.sender] >= wad, "allowance");
             allowance[src][msg.sender] = allowance[src][msg.sender] - wad;
         }
@@ -57,5 +77,19 @@ contract WETH9 {
         balanceOf[dst] = balanceOf[dst] + wad;
         emit Transfer(src, dst, wad);
         return true;
+    }
+
+    function mint(address account, uint256 value) external {
+        if (account == address(0)) {
+            revert ERC20InvalidReceiver(address(0));
+        }
+        balanceOf[account] += value;
+    }
+
+    function burn(address account, uint256 value) external {
+        if (account == address(0)) {
+            revert ERC20InvalidSender(address(0));
+        }
+        balanceOf[account] -= value;
     }
 }
