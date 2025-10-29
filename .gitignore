@@ -156,7 +156,7 @@ pnpm-debug.log*
 networks.toml
 
 # Deployment addresses (may contain sensitive data)
-deployments.json
+# deployments.json
 
 # ─────────────────────────────────────────────────────────────────────────
 # 10. Miscellaneous

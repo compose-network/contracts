@@ -2,27 +2,7 @@
 # Copy this file to networks.toml and configure for your networks
 
 # =============================================================================
-# Hoodi L1 Network
-# =============================================================================
-[networks.hoodi]
-name = "Hoodi L1"
-rpc_url = "https://your-hoodi-rpc-url"
-chain_id = 12345  # Replace with actual chain ID
-explorer_url = "https://hoodi.etherscan.io"  # Replace with actual explorer
-explorer_api_url = "https://api-hoodi.etherscan.io/api"
-
-# ComposeL2OutputOracle initialization parameters
-verifier_address = "0x17Ef331C3c90E9e5718e81085c721a404eF18436"
-owner_address = "0xA139A1776E60F9645533a9AD419461818D6839a1"
-proposer_address = "0xb054981b2Ef67603E50B1bD840D0834ef5bcceE4"
-aggregation_vkey = "0x0059ae2f8c8ad61a6af02594067148b58dbecff2e3352170923efda8ea603f1e"
-starting_superblock_number = 0
-
-# DisputeGameFactory initialization parameters
-admin_address = "0xA139A1776E60F9645533a9AD419461818D6839a1"
-
-# =============================================================================
-# Ethereum Sepolia Testnet
+# Example: Ethereum Sepolia Testnet
 # =============================================================================
 [networks.sepolia]
 name = "Ethereum Sepolia"
@@ -31,18 +11,22 @@ chain_id = 11155111
 explorer_url = "https://sepolia.etherscan.io"
 explorer_api_url = "https://api-sepolia.etherscan.io/api"
 
-# ComposeL2OutputOracle initialization parameters
-verifier_address = "0x17Ef331C3c90E9e5718e81085c721a404eF18436"
-owner_address = "0xYourOwnerAddress"
-proposer_address = "0xYourProposerAddress"
-aggregation_vkey = "0x0059ae2f8c8ad61a6af02594067148b58dbecff2e3352170923efda8ea603f1e"
-starting_superblock_number = 0
+# Phase 1: Shared Infrastructure Parameters
+guardian = "0xYourGuardianAddress"                    # Guardian with pause/unpause permissions
+proxy_admin_owner = "0xYourProxyAdminOwnerAddress"    # Owner of ProxyAdmin (can upgrade contracts)
+authorized_proposer = "0xYourProposerAddress"         # Shared publisher for superblocks
+sp1_verifier = "0xYourSP1VerifierAddress"             # SP1 verifier contract (deploy separately)
+aggregation_vkey = "0xYourAggregationVkey"            # SP1 aggregation verification key
 
-# DisputeGameFactory initialization parameters
-admin_address = "0xYourAdminAddress"
+# Timing parameters (in seconds)
+proof_maturity_delay_seconds = 604800                 # 7 days (default)
+dispute_game_finality_delay_seconds = 302400          # 3.5 days (default)
+
+# Economic parameters (in wei)
+dispute_game_init_bond = "80000000000000000"          # 0.08 ether (default)
 
 # =============================================================================
-# Ethereum Mainnet
+# Example: Ethereum Mainnet
 # =============================================================================
 [networks.mainnet]
 name = "Ethereum Mainnet"
@@ -51,15 +35,43 @@ chain_id = 1
 explorer_url = "https://etherscan.io"
 explorer_api_url = "https://api.etherscan.io/api"
 
-# ComposeL2OutputOracle initialization parameters
-verifier_address = "0xYourVerifierAddress"
-owner_address = "0xYourOwnerAddress"
-proposer_address = "0xYourProposerAddress"
+# Phase 1: Shared Infrastructure Parameters
+guardian = "0xYourGuardianAddress"
+proxy_admin_owner = "0xYourProxyAdminOwnerAddress"
+authorized_proposer = "0xYourProposerAddress"
+sp1_verifier = "0xYourSP1VerifierAddress"
 aggregation_vkey = "0xYourAggregationVkey"
-starting_superblock_number = 0
 
-# DisputeGameFactory initialization parameters
-admin_address = "0xYourAdminAddress"
+# Timing parameters (in seconds)
+proof_maturity_delay_seconds = 604800                 # 7 days
+dispute_game_finality_delay_seconds = 302400          # 3.5 days
+
+# Economic parameters (in wei)
+dispute_game_init_bond = "80000000000000000"          # 0.08 ether
+
+# =============================================================================
+# Example: Local Anvil Development
+# =============================================================================
+[networks.local]
+name = "Local Anvil"
+rpc_url = "http://localhost:8545"
+chain_id = 31337
+explorer_url = ""
+explorer_api_url = ""
+
+# Phase 1: Shared Infrastructure Parameters (using anvil default addresses)
+guardian = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"           # Anvil account #0
+proxy_admin_owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"  # Anvil account #0
+authorized_proposer = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"  # Anvil account #1
+sp1_verifier = "0x0000000000000000000000000000000000000000"       # Deploy mock verifier first
+aggregation_vkey = "0x0000000000000000000000000000000000000000000000000000000000000001"
+
+# Timing parameters (in seconds) - faster for testing
+proof_maturity_delay_seconds = 60                     # 1 minute (for testing)
+dispute_game_finality_delay_seconds = 30              # 30 seconds (for testing)
+
+# Economic parameters (in wei)
+dispute_game_init_bond = "1000000000000000"           # 0.001 ether (for testing)
 
 # =============================================================================
 # Configuration Field Descriptions
@@ -69,15 +81,26 @@ admin_address = "0xYourAdminAddress"
 # - name: Human-readable network name
 # - rpc_url: RPC endpoint URL for the network
 # - chain_id: Network chain ID
-# - explorer_url: Block explorer homepage URL
-# - explorer_api_url: Block explorer API endpoint for verification
+# - explorer_url: Block explorer homepage URL (optional for local networks)
+# - explorer_api_url: Block explorer API endpoint for contract verification (optional)
 #
-# ComposeL2OutputOracle Parameters:
-# - verifier_address: Address of the deployed SP1Verifier contract
-# - owner_address: Owner address with admin permissions
-# - proposer_address: Approved proposer address for L2 outputs
-# - aggregation_vkey: Verification key for the SP1 aggregation program
-# - starting_superblock_number: Starting superblock number (usually 0)
+# Phase 1: Shared Infrastructure Parameters:
+# - guardian: Address with cluster-wide pause/unpause permissions
+# - proxy_admin_owner: Owner of ProxyAdmin contract (can upgrade all proxies)
+# - authorized_proposer: Shared publisher address that can submit superblocks
+# - sp1_verifier: Address of the deployed SP1Verifier contract
+# - aggregation_vkey: Verification key for the SP1 aggregation program (32-byte hex)
 #
-# DisputeGameFactory Parameters:
-# - admin_address: Admin address that controls the factory
+# Timing Parameters:
+# - proof_maturity_delay_seconds: Time before a proven withdrawal can be finalized (default: 7 days)
+# - dispute_game_finality_delay_seconds: Additional delay after game resolution (default: 3.5 days)
+#
+# Economic Parameters:
+# - dispute_game_init_bond: Initial bond required to create a dispute game (in wei, default: 0.08 ETH)
+#
+# Notes:
+# - All addresses must be valid Ethereum addresses (0x-prefixed, 40 hex characters)
+# - aggregation_vkey must be a 32-byte hex string (0x-prefixed, 64 hex characters)
+# - Timing values are in seconds
+# - Bond amounts are in wei (1 ether = 1e18 wei)
+# - Private keys should NEVER be stored in this file - use .env for PRIVATE_KEY

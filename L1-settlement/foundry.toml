@@ -4,6 +4,10 @@ out = "out"
 libs = ["lib"]
 auto_detect_solc = true
 solc_version = "0.8.15"
+fs_permissions = [
+    { access = "read", path = "./networks.toml" },
+    { access = "read", path = "./out" }
+]
 
 remappings = [
     "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",

@@ -10,7 +10,7 @@ echo "Deploying Compose Contracts to $NETWORK_NAME"
 echo "========================================="
 echo ""
 
-# Parse network configuration
+# Parse network configuration (sets NETWORK_NAME env var and validates .env)
 source scripts/parse-network.sh "$NETWORK_NAME"
 
 echo "Network:     $NETWORK_NAME"
@@ -24,172 +24,65 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Create temporary file for deployment output
-TMP_OUTPUT=$(mktemp)
-
 # =============================================================================
-# Step 1: Deploy ComposeL2OutputOracle (Proxy + Implementation)
+# Deploy Phase 1: Shared Infrastructure
 # =============================================================================
 echo "========================================="
-echo "Step 1/3: Deploying ComposeL2OutputOracle"
+echo "Deploying Phase 1: Shared Infrastructure"
 echo "========================================="
 echo ""
+
+# Set private key env var (ComposeConfig reads PRIVATE_KEY)
+export PRIVATE_KEY="${DEPLOYER_PRIVATE_KEY:-$PRIVATE_KEY}"
 
 # Deploy with verification
 if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
-    forge script script/DeployComposeL2OutputOracle.s.sol:DeployComposeL2OutputOracle \
+    forge script script/deploy/DeploySharedInfra.s.sol:DeploySharedInfra \
         --rpc-url "$NETWORK_RPC_URL" \
-        --sig "run(address,address,address,bytes32,uint256)" \
-        "$NETWORK_VERIFIER_ADDRESS" \
-        "$NETWORK_OWNER_ADDRESS" \
-        "$NETWORK_PROPOSER_ADDRESS" \
-        "$NETWORK_AGGREGATION_VKEY" \
-        "$NETWORK_STARTING_SUPERBLOCK_NUMBER" \
-        --private-key "$DEPLOYER_PRIVATE_KEY" \
+        --private-key "$PRIVATE_KEY" \
+        --sig "run()" \
         --broadcast \
         --verify \
-        --etherscan-api-key "$ETHERSCAN_API_KEY" \
-        2>&1 | tee "$TMP_OUTPUT"
+        --etherscan-api-key "$ETHERSCAN_API_KEY"
 else
     echo "Warning: Skipping verification (no ETHERSCAN_API_KEY)"
-    forge script script/DeployComposeL2OutputOracle.s.sol:DeployComposeL2OutputOracle \
+    forge script script/deploy/DeploySharedInfra.s.sol:DeploySharedInfra \
         --rpc-url "$NETWORK_RPC_URL" \
-        --sig "run(address,address,address,bytes32,uint256)" \
-        "$NETWORK_VERIFIER_ADDRESS" \
-        "$NETWORK_OWNER_ADDRESS" \
-        "$NETWORK_PROPOSER_ADDRESS" \
-        "$NETWORK_AGGREGATION_VKEY" \
-        "$NETWORK_STARTING_SUPERBLOCK_NUMBER" \
-        --private-key "$DEPLOYER_PRIVATE_KEY" \
-        --broadcast \
-        2>&1 | tee "$TMP_OUTPUT"
+        --private-key "$PRIVATE_KEY" \
+        --sig "run()" \
+        --broadcast
 fi
 
-# Parse ComposeL2OutputOracle addresses from broadcast output
-BROADCAST_DIR="broadcast/DeployComposeL2OutputOracle.s.sol/$NETWORK_CHAIN_ID"
+# Parse deployment addresses from broadcast output
+BROADCAST_DIR="broadcast/DeploySharedInfra.s.sol/$NETWORK_CHAIN_ID"
 BROADCAST_FILE=$(ls -t "$BROADCAST_DIR"/run-*.json 2>/dev/null | head -1)
 
 if [ -z "$BROADCAST_FILE" ]; then
-    echo "Error: Could not find broadcast output for ComposeL2OutputOracle"
+    echo "Error: Could not find broadcast output for DeploySharedInfra"
     exit 1
 fi
 
-# Extract addresses from broadcast JSON
-ORACLE_IMPL=$(jq -r '.transactions[] | select(.contractName == "ComposeL2OutputOracle") | .contractAddress' "$BROADCAST_FILE" | head -1)
-ORACLE_PROXY=$(jq -r '.transactions[] | select(.contractName == "ERC1967Proxy") | .contractAddress' "$BROADCAST_FILE" | head -1)
-
-if [ -z "$ORACLE_PROXY" ] || [ "$ORACLE_PROXY" = "null" ]; then
-    echo "Error: Could not extract ComposeL2OutputOracle proxy address"
-    exit 1
-fi
-
-echo ""
-echo "✓ ComposeL2OutputOracle deployed:"
-echo "  Implementation: $ORACLE_IMPL"
-echo "  Proxy:          $ORACLE_PROXY"
-echo ""
-
-# =============================================================================
-# Step 2: Deploy ComposeDisputeGame (Implementation)
-# =============================================================================
-echo "========================================="
-echo "Step 2/3: Deploying ComposeDisputeGame"
-echo "========================================="
-echo ""
-
-# Deploy with verification
-if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
-    forge script script/DeployComposeDisputeGame.s.sol:DeployComposeDisputeGame \
-        --rpc-url "$NETWORK_RPC_URL" \
-        --sig "run(address)" "$ORACLE_PROXY" \
-        --private-key "$DEPLOYER_PRIVATE_KEY" \
-        --broadcast \
-        --verify \
-        --etherscan-api-key "$ETHERSCAN_API_KEY" \
-        2>&1 | tee "$TMP_OUTPUT"
-else
-    echo "Warning: Skipping verification (no ETHERSCAN_API_KEY)"
-    forge script script/DeployComposeDisputeGame.s.sol:DeployComposeDisputeGame \
-        --rpc-url "$NETWORK_RPC_URL" \
-        --sig "run(address)" "$ORACLE_PROXY" \
-        --private-key "$DEPLOYER_PRIVATE_KEY" \
-        --broadcast \
-        2>&1 | tee "$TMP_OUTPUT"
-fi
-
-# Parse ComposeDisputeGame address from broadcast output
-BROADCAST_DIR="broadcast/DeployComposeDisputeGame.s.sol/$NETWORK_CHAIN_ID"
-BROADCAST_FILE=$(ls -t "$BROADCAST_DIR"/run-*.json 2>/dev/null | head -1)
-
-if [ -z "$BROADCAST_FILE" ]; then
-    echo "Error: Could not find broadcast output for ComposeDisputeGame"
-    exit 1
-fi
-
-GAME_IMPL=$(jq -r '.transactions[] | select(.contractName == "ComposeDisputeGame") | .contractAddress' "$BROADCAST_FILE" | head -1)
-
-if [ -z "$GAME_IMPL" ] || [ "$GAME_IMPL" = "null" ]; then
-    echo "Error: Could not extract ComposeDisputeGame address"
-    exit 1
-fi
-
-echo ""
-echo "✓ ComposeDisputeGame deployed:"
-echo "  Implementation: $GAME_IMPL"
-echo ""
-
-# =============================================================================
-# Step 3: Deploy DisputeGameFactory (ProxyAdmin + Implementation + Proxy)
-# =============================================================================
-echo "========================================="
-echo "Step 3/3: Deploying DisputeGameFactory"
-echo "========================================="
-echo ""
-
-# Deploy with verification
-if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
-    forge script script/DeployDisputeGameFactory.s.sol:DeployDisputeGameFactory \
-        --rpc-url "$NETWORK_RPC_URL" \
-        --sig "run(address)" "$NETWORK_ADMIN_ADDRESS" \
-        --private-key "$DEPLOYER_PRIVATE_KEY" \
-        --broadcast \
-        --verify \
-        --etherscan-api-key "$ETHERSCAN_API_KEY" \
-        2>&1 | tee "$TMP_OUTPUT"
-else
-    echo "Warning: Skipping verification (no ETHERSCAN_API_KEY)"
-    forge script script/DeployDisputeGameFactory.s.sol:DeployDisputeGameFactory \
-        --rpc-url "$NETWORK_RPC_URL" \
-        --sig "run(address)" "$NETWORK_ADMIN_ADDRESS" \
-        --private-key "$DEPLOYER_PRIVATE_KEY" \
-        --broadcast \
-        2>&1 | tee "$TMP_OUTPUT"
-fi
-
-# Parse DisputeGameFactory addresses from broadcast output
-BROADCAST_DIR="broadcast/DeployDisputeGameFactory.s.sol/$NETWORK_CHAIN_ID"
-BROADCAST_FILE=$(ls -t "$BROADCAST_DIR"/run-*.json 2>/dev/null | head -1)
-
-if [ -z "$BROADCAST_FILE" ]; then
-    echo "Error: Could not find broadcast output for DisputeGameFactory"
-    exit 1
-fi
-
-# Extract addresses (order: ProxyAdmin, DisputeGameFactory impl, Proxy)
+# Extract deployed contract addresses
 PROXY_ADMIN=$(jq -r '.transactions[] | select(.contractName == "ProxyAdmin") | .contractAddress' "$BROADCAST_FILE" | head -1)
-FACTORY_IMPL=$(jq -r '.transactions[] | select(.contractName == "DisputeGameFactory") | .contractAddress' "$BROADCAST_FILE" | head -1)
-FACTORY_PROXY=$(jq -r '.transactions[] | select(.contractName == "Proxy") | .contractAddress' "$BROADCAST_FILE" | head -1)
 
-if [ -z "$FACTORY_PROXY" ] || [ "$FACTORY_PROXY" = "null" ]; then
-    echo "Error: Could not extract DisputeGameFactory proxy address"
-    exit 1
-fi
+# Get all Proxy deployments in order (they are deployed as: SuperchainConfig, DisputeGameFactory, AnchorStateRegistry, ETHLockbox)
+PROXY_ADDRESSES=($(jq -r '.transactions[] | select(.contractName == "Proxy" and .transactionType == "CREATE") | .contractAddress' "$BROADCAST_FILE"))
+SUPERCHAIN_CONFIG_PROXY="${PROXY_ADDRESSES[0]}"
+DISPUTE_GAME_FACTORY_PROXY="${PROXY_ADDRESSES[1]}"
+ANCHOR_STATE_REGISTRY_PROXY="${PROXY_ADDRESSES[2]}"
+ETH_LOCKBOX_PROXY="${PROXY_ADDRESSES[3]}"
+
+# Get ComposeDisputeGame implementation
+DISPUTE_GAME_IMPL=$(jq -r '.transactions[] | select(.contractName == "ComposeDisputeGame") | .contractAddress' "$BROADCAST_FILE" | head -1)
 
 echo ""
-echo "✓ DisputeGameFactory deployed:"
-echo "  Implementation: $FACTORY_IMPL"
-echo "  Proxy:          $FACTORY_PROXY"
-echo "  ProxyAdmin:     $PROXY_ADMIN"
+echo "✓ Phase 1 deployment complete:"
+echo "  ProxyAdmin:              $PROXY_ADMIN"
+echo "  SuperchainConfig:        $SUPERCHAIN_CONFIG_PROXY"
+echo "  DisputeGameFactory:      $DISPUTE_GAME_FACTORY_PROXY"
+echo "  AnchorStateRegistry:     $ANCHOR_STATE_REGISTRY_PROXY"
+echo "  ETHLockbox:              $ETH_LOCKBOX_PROXY"
+echo "  ComposeDisputeGame:      $DISPUTE_GAME_IMPL"
 echo ""
 
 # =============================================================================
@@ -198,17 +91,14 @@ echo ""
 ./scripts/save-deployment.sh \
     "$NETWORK_NAME" \
     "$NETWORK_CHAIN_ID" \
-    "$ORACLE_PROXY" \
-    "$ORACLE_IMPL" \
-    "$GAME_IMPL" \
-    "$FACTORY_PROXY" \
-    "$FACTORY_IMPL" \
-    "$PROXY_ADMIN"
+    "$PROXY_ADMIN" \
+    "$SUPERCHAIN_CONFIG_PROXY" \
+    "$DISPUTE_GAME_FACTORY_PROXY" \
+    "$ANCHOR_STATE_REGISTRY_PROXY" \
+    "$ETH_LOCKBOX_PROXY" \
+    "$DISPUTE_GAME_IMPL"
 
 echo ""
 echo "========================================="
 echo "✓ Deployment to $NETWORK_NAME complete!"
 echo "========================================="
-
-# Cleanup
-rm -f "$TMP_OUTPUT"

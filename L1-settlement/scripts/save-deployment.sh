@@ -5,12 +5,12 @@ set -euo pipefail
 
 NETWORK_NAME=$1
 CHAIN_ID=$2
-ORACLE_PROXY=$3
-ORACLE_IMPL=$4
-GAME_IMPL=$5
-FACTORY_PROXY=$6
-FACTORY_IMPL=$7
-PROXY_ADMIN=$8
+PROXY_ADMIN=$3
+SUPERCHAIN_CONFIG_PROXY=$4
+DISPUTE_GAME_FACTORY_PROXY=$5
+ANCHOR_STATE_REGISTRY_PROXY=$6
+ETH_LOCKBOX_PROXY=$7
+DISPUTE_GAME_IMPL=$8
 
 DEPLOYMENT_FILE="deployments.json"
 
@@ -27,17 +27,22 @@ DEPLOYMENT_JSON=$(cat <<EOF
 {
   "$NETWORK_NAME": {
     "chain_id": "$CHAIN_ID",
-    "ComposeL2OutputOracle": {
-      "proxy": "$ORACLE_PROXY",
-      "implementation": "$ORACLE_IMPL"
-    },
-    "ComposeDisputeGame": {
-      "implementation": "$GAME_IMPL"
+    "phase": "phase1-shared-infrastructure",
+    "ProxyAdmin": "$PROXY_ADMIN",
+    "SuperchainConfig": {
+      "proxy": "$SUPERCHAIN_CONFIG_PROXY"
     },
     "DisputeGameFactory": {
-      "proxy": "$FACTORY_PROXY",
-      "implementation": "$FACTORY_IMPL",
-      "proxyAdmin": "$PROXY_ADMIN"
+      "proxy": "$DISPUTE_GAME_FACTORY_PROXY"
+    },
+    "AnchorStateRegistry": {
+      "proxy": "$ANCHOR_STATE_REGISTRY_PROXY"
+    },
+    "ETHLockbox": {
+      "proxy": "$ETH_LOCKBOX_PROXY"
+    },
+    "ComposeDisputeGame": {
+      "implementation": "$DISPUTE_GAME_IMPL"
     },
     "deployed_at": "$TIMESTAMP"
   }
@@ -54,19 +59,20 @@ echo ""
 echo "✓ Deployment addresses saved to $DEPLOYMENT_FILE"
 echo ""
 echo "=== Deployment Summary for $NETWORK_NAME ==="
-echo "Chain ID:               $CHAIN_ID"
+echo "Chain ID:                    $CHAIN_ID"
+echo "Phase:                       Phase 1 - Shared Infrastructure"
 echo ""
-echo "ComposeL2OutputOracle:"
-echo "  Proxy:                $ORACLE_PROXY"
-echo "  Implementation:       $ORACLE_IMPL"
+echo "Governance:"
+echo "  ProxyAdmin:                $PROXY_ADMIN"
+echo "  SuperchainConfig (Proxy):  $SUPERCHAIN_CONFIG_PROXY"
 echo ""
-echo "ComposeDisputeGame:"
-echo "  Implementation:       $GAME_IMPL"
+echo "Settlement:"
+echo "  DisputeGameFactory (Proxy): $DISPUTE_GAME_FACTORY_PROXY"
+echo "  AnchorStateRegistry (Proxy): $ANCHOR_STATE_REGISTRY_PROXY"
+echo "  ComposeDisputeGame (Impl):   $DISPUTE_GAME_IMPL"
 echo ""
-echo "DisputeGameFactory:"
-echo "  Proxy:                $FACTORY_PROXY"
-echo "  Implementation:       $FACTORY_IMPL"
-echo "  ProxyAdmin:           $PROXY_ADMIN"
+echo "Liquidity:"
+echo "  ETHLockbox (Proxy):        $ETH_LOCKBOX_PROXY"
 echo ""
-echo "Deployed at:            $TIMESTAMP"
+echo "Deployed at:                 $TIMESTAMP"
 echo "========================================"
