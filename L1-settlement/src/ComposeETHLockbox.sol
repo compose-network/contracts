@@ -180,16 +180,17 @@ contract ComposeETHLockbox is ProxyAdminOwnedBase, Initializable, Reinitializabl
         emit ETHUnlocked(sender, _value);
     }
 
-    /// @notice Authorizes an ETH lockbox to migrate its liquidity to the current ETH lockbox. We
-    ///         allow this function to be called more than once for the same lockbox. A lockbox
-    ///         cannot be removed from the authorized list once added.
-    /// @param _lockbox The address of the ETH lockbox to authorize.
+    /// @notice Authorizes another lockbox to receive liquidity from this lockbox.
+    /// @dev    Must be called atomically with `migrateLiquidity()` in the same transaction batch.
+    /// @param _lockbox The address of the lockbox to authorize.
     function authorizeLockbox(IETHLockbox _lockbox) external {
         // Check that this transaction is coming from the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
 
         // Check that the lockbox has the same proxy admin owner.
-        _assertSharedProxyAdminOwner(address(_lockbox));
+        // NOTE: Disabled for multi-owner architecture where Compose and rollup have different ProxyAdmin owners
+        // In multi-lockbox scenarios, authorization is explicit and controlled by ProxyAdmin owner
+        // _assertSharedProxyAdminOwner(address(_lockbox));
 
         // Authorize the lockbox.
         authorizedLockboxes[_lockbox] = true;
@@ -208,7 +209,9 @@ contract ComposeETHLockbox is ProxyAdminOwnedBase, Initializable, Reinitializabl
         _assertOnlyProxyAdminOwner();
 
         // Check that the lockbox has the same proxy admin owner.
-        _assertSharedProxyAdminOwner(address(_lockbox));
+        // NOTE: Disabled for multi-owner architecture where Compose and rollup have different ProxyAdmin owners
+        // Security is ensured by explicit authorization via ProxyAdmin owner
+        // _assertSharedProxyAdminOwner(address(_lockbox));
 
         // Receive the liquidity.
         uint256 balance = address(this).balance;
@@ -222,9 +225,11 @@ contract ComposeETHLockbox is ProxyAdminOwnedBase, Initializable, Reinitializabl
     /// @param _portal The address of the portal to authorize.
     function _authorizePortal(IOptimismPortal _portal) internal {
         // Check that the portal has the same proxy admin owner.
-        _assertSharedProxyAdminOwner(address(_portal));
+        // NOTE: Disabled for multi-owner architecture where Compose and rollup have different ProxyAdmin owners
+        // _assertSharedProxyAdminOwner(address(_portal));
 
         // Check that the portal has the same superchain config.
+        // CRITICAL: All portals must use the shared Compose SuperchainConfig for coordinated pausing
         if (_portal.superchainConfig() != superchainConfig()) revert ETHLockbox_DifferentSuperchainConfig();
 
         // Authorize the portal.
