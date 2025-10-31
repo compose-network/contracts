@@ -7,22 +7,30 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-NETWORK=$1
-DRY_RUN=${2:-false}
+ROLLUP=$1
+COMPOSE_NETWORK=$2
+DRY_RUN=${3:-false}
 
-# Check if network parameter is provided
-if [ -z "$NETWORK" ]; then
-    echo -e "${RED}Error: Network parameter required${NC}"
-    echo "Usage: $0 <network> [dry-run]"
-    echo "Example: $0 hoodi"
-    echo "Example: $0 hoodi dry-run"
+# Check if rollup and compose network parameters are provided
+if [ -z "$ROLLUP" ] || [ -z "$COMPOSE_NETWORK" ]; then
+    echo -e "${RED}Error: Both rollup and compose network parameters required${NC}"
+    echo "Usage: $0 <rollup> <compose_network> [dry-run]"
+    echo "Example: $0 rollup-a-stage hoodi-stage"
+    echo "Example: $0 rollup-a-prod hoodi-prod dry-run"
     exit 1
 fi
 
-# Check if network config exists
-NETWORK_CONFIG="script/predeploy/${NETWORK}.json"
-if [ ! -f "$NETWORK_CONFIG" ]; then
-    echo -e "${RED}Error: Network configuration not found: $NETWORK_CONFIG${NC}"
+# Check if rollup config exists
+ROLLUP_CONFIG="script/config/rollups/${ROLLUP}.json"
+if [ ! -f "$ROLLUP_CONFIG" ]; then
+    echo -e "${RED}Error: Rollup configuration not found: $ROLLUP_CONFIG${NC}"
+    exit 1
+fi
+
+# Check if compose config exists
+COMPOSE_CONFIG="script/config/compose/${COMPOSE_NETWORK}.json"
+if [ ! -f "$COMPOSE_CONFIG" ]; then
+    echo -e "${RED}Error: Compose configuration not found: $COMPOSE_CONFIG${NC}"
     exit 1
 fi
 
@@ -55,8 +63,9 @@ if [ "$DRY_RUN" = "dry-run" ]; then
     IS_DRY_RUN="true"
 fi
 
-echo -e "${GREEN}Rollup config loaded for: $NETWORK${NC}"
-echo "  Configuration will be read from: $NETWORK_CONFIG"
+echo -e "${GREEN}Migration configuration:${NC}"
+echo "  Rollup: $ROLLUP (from $ROLLUP_CONFIG)"
+echo "  Compose Network: $COMPOSE_NETWORK (from $COMPOSE_CONFIG)"
 echo "  Mode: $([ "$IS_DRY_RUN" = "true" ] && echo "DRY RUN (simulation only)" || echo "LIVE (will broadcast transactions)")"
 
 # Load network configuration
@@ -65,13 +74,14 @@ if [ -z "${DEPLOYER_PRIVATE_KEY:-}" ]; then
     export DEPLOYER_PRIVATE_KEY="0x0000000000000000000000000000000000000000000000000000000000000001"
 fi
 
-source scripts/parse-network.sh "$NETWORK"
+source scripts/parse-network.sh "$COMPOSE_NETWORK"
 
-CHAIN_ID=$(jq -r '.l2ChainId' "$NETWORK_CONFIG")
+CHAIN_ID=$(jq -r '.l2ChainId' "$ROLLUP_CONFIG")
 
-echo "Network:     $NETWORK_NAME"
-echo "L2 Chain ID: $CHAIN_ID"
-echo "RPC URL:     $NETWORK_RPC_URL"
+echo "Rollup:       $ROLLUP"
+echo "Compose Net:  $NETWORK_NAME"
+echo "L2 Chain ID:  $CHAIN_ID"
+echo "RPC URL:      $NETWORK_RPC_URL"
 echo ""
 
 if [ "$IS_DRY_RUN" = "true" ]; then
@@ -100,7 +110,7 @@ fi
 # Execute the migration
 FORGE_ARGS=(
     "script/migrate/MigrateRollup.s.sol:MigrateRollup"
-    "--sig" "run(string,bool)"
+    "--sig" "run(string,string,bool)"
     "--rpc-url" "$NETWORK_RPC_URL"
 )
 
@@ -114,15 +124,15 @@ if [ "$IS_DRY_RUN" = "false" ]; then
     FORGE_ARGS+=("--broadcast")
     FORGE_ARGS+=("--private-key" "$MIGRATION_PROXY_ADMIN_OWNER_KEY")
 else
-    # In dry-run, use the ProxyAdmin owner address from hoodi.json as sender
-    PROXY_ADMIN_OWNER=$(jq -r '.proxyAdmin.owner' "$NETWORK_CONFIG")
+    # In dry-run, use the ProxyAdmin owner address from rollup config as sender
+    PROXY_ADMIN_OWNER=$(jq -r '.proxyAdmin.owner' "$ROLLUP_CONFIG")
     FORGE_ARGS+=("--sender" "$PROXY_ADMIN_OWNER")
     # Add maximum verbosity for dry-run to show all console.log and traces
     FORGE_ARGS+=("-vvv")
 fi
 
 # Add function arguments
-FORGE_ARGS+=("$NETWORK" "$IS_DRY_RUN")
+FORGE_ARGS+=("$ROLLUP" "$COMPOSE_NETWORK" "$IS_DRY_RUN")
 
 if forge script "${FORGE_ARGS[@]}"; then
     if [ "$IS_DRY_RUN" = "true" ]; then
@@ -131,7 +141,7 @@ if forge script "${FORGE_ARGS[@]}"; then
         echo "Review the simulation output above."
         echo ""
         echo "To execute the migration for real, run:"
-        echo "  just migrate-rollup $NETWORK"
+        echo "  just migrate-rollup $ROLLUP $COMPOSE_NETWORK"
     else
         echo -e "\n${GREEN}Phase 2 migration complete!${NC}"
         

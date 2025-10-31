@@ -29,6 +29,7 @@ contract MigrateRollupInput is BaseDeployIO {
     IL1ERC721Bridge internal _l1ERC721Bridge;
     
     // Phase 1 Shared Infrastructure (already deployed)
+    address internal _composeProxyAdminOwner;
     ISuperchainConfig internal _composeSuperchainConfig;
     IDisputeGameFactory internal _composeDisputeGameFactory;
     IComposeAnchorStateRegistry internal _composeAnchorStateRegistry;
@@ -55,6 +56,7 @@ contract MigrateRollupInput is BaseDeployIO {
         else if (sel == this.l1CrossDomainMessenger.selector) _l1CrossDomainMessenger = IL1CrossDomainMessenger(val);
         else if (sel == this.l1StandardBridge.selector) _l1StandardBridge = IL1StandardBridge(payable(val));
         else if (sel == this.l1ERC721Bridge.selector) _l1ERC721Bridge = IL1ERC721Bridge(val);
+        else if (sel == this.composeProxyAdminOwner.selector) _composeProxyAdminOwner = val;
         else if (sel == this.composeSuperchainConfig.selector) _composeSuperchainConfig = ISuperchainConfig(val);
         else if (sel == this.composeDisputeGameFactory.selector) _composeDisputeGameFactory = IDisputeGameFactory(val);
         else if (sel == this.composeAnchorStateRegistry.selector) _composeAnchorStateRegistry = IComposeAnchorStateRegistry(val);
@@ -103,6 +105,11 @@ contract MigrateRollupInput is BaseDeployIO {
         return _l1ERC721Bridge;
     }
     
+    function composeProxyAdminOwner() public view returns (address) {
+        require(_composeProxyAdminOwner != address(0), "composeProxyAdminOwner not set");
+        return _composeProxyAdminOwner;
+    }
+
     function composeSuperchainConfig() public view returns (ISuperchainConfig) {
         require(address(_composeSuperchainConfig) != address(0), "composeSuperchainConfig not set");
         return _composeSuperchainConfig;

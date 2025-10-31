@@ -106,43 +106,44 @@ get-deployment NETWORK:
 # ============================================================================
 
 # Migrate a rollup to Compose (dry-run with detailed output)
-migrate-rollup-dry NETWORK:
+migrate-rollup-dry ROLLUP COMPOSE_NETWORK:
     #!/usr/bin/env bash
     set -euo pipefail
-    ./scripts/migrate-rollup.sh {{NETWORK}} dry-run
+    ./scripts/migrate-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}} dry-run
 
 # Migrate a rollup to Compose (LIVE - broadcasts transactions)
-migrate-rollup NETWORK:
+migrate-rollup ROLLUP COMPOSE_NETWORK:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "WARNING: This will execute LIVE transactions on-chain!"
     echo "Press Ctrl+C to cancel, or Enter to continue..."
     read
-    ./scripts/migrate-rollup.sh {{NETWORK}}
+    ./scripts/migrate-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}}
 
 # Test migration on a forked network at specific block
-migrate-fork NETWORK BLOCK:
+migrate-fork ROLLUP COMPOSE_NETWORK BLOCK:
     #!/usr/bin/env bash
     set -euo pipefail
-    source scripts/parse-network.sh {{NETWORK}}
+    source scripts/parse-network.sh {{COMPOSE_NETWORK}}
     
     # Read rollup ProxyAdmin owner from config (for --sender impersonation)
-    ROLLUP_OWNER=$(jq -r '.proxyAdmin.owner' "script/predeploy/{{NETWORK}}.json")
+    ROLLUP_OWNER=$(jq -r '.proxyAdmin.owner' "script/config/rollups/{{ROLLUP}}.json")
     
     echo "Testing migration on fork at block {{BLOCK}}..."
-    echo "  Network: $NETWORK_NAME"
+    echo "  Rollup: {{ROLLUP}}"
+    echo "  Compose Network: $NETWORK_NAME"
     echo "  RPC URL: $NETWORK_RPC_URL"
     echo "  Impersonating: $ROLLUP_OWNER (rollup ProxyAdmin owner)"
     echo ""
     
     forge script script/migrate/MigrateRollup.s.sol:MigrateRollup \
-        --sig 'run(string,bool)' \
+        --sig 'run(string,string,bool)' \
         --fork-url "$NETWORK_RPC_URL" \
         --fork-block-number {{BLOCK}} \
         --sender "$ROLLUP_OWNER" \
         --unlocked \
         -vvvv \
-        {{NETWORK}} false
+        {{ROLLUP}} {{COMPOSE_NETWORK}} false
 
 # ============================================================================
 # Configuration

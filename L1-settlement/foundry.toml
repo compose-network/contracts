@@ -7,7 +7,7 @@ solc_version = "0.8.15"
 fs_permissions = [
     { access = "read", path = "./networks.toml" },
     { access = "read", path = "./out" },
-    { access = "read", path = "./script/predeploy" }
+    { access = "read", path = "./script/config" }
 ]
 
 remappings = [

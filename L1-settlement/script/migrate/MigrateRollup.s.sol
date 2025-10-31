@@ -76,13 +76,14 @@ contract MigrateRollup is Script {
     bool public dryRun;
     
     /// @notice Entrypoint for migration
-    /// @param network The network name (e.g., "hoodi")
+    /// @param rollup The rollup name (e.g., "rollup-a-stage")
+    /// @param composeNetwork The compose network name (e.g., "hoodi-stage")
     /// @param _dryRun If true, simulate without broadcasting transactions
-    function run(string memory network, bool _dryRun) public returns (MigrateRollupOutput) {
+    function run(string memory rollup, string memory composeNetwork, bool _dryRun) public returns (MigrateRollupOutput) {
         dryRun = _dryRun;
         
         // Load configuration
-        input = loadConfiguration(network);
+        input = loadConfiguration(rollup, composeNetwork);
         output = new MigrateRollupOutput();
         
         // Pre-migration validation
@@ -96,7 +97,8 @@ contract MigrateRollup is Script {
         
         console.log("=================================================");
         console.log("Migrating Rollup to Compose (Phase 2)");
-        console.log("Network:", network);
+        console.log("Rollup:", rollup);
+        console.log("Compose Network:", composeNetwork);
         console.log("L2 Chain ID:", input.l2ChainId());
         console.log("=================================================");
         
@@ -122,13 +124,13 @@ contract MigrateRollup is Script {
     }
     
     /// @notice Load migration configuration from JSON files
-    function loadConfiguration(string memory network) internal returns (MigrateRollupInput) {
+    function loadConfiguration(string memory rollup, string memory composeNetwork) internal returns (MigrateRollupInput) {
         MigrateRollupInput migrationInput = new MigrateRollupInput();
         
         string memory root = vm.projectRoot();
         
-        // Load rollup-specific config from hoodi.json
-        string memory rollupPath = string.concat(root, "/script/predeploy/", network, ".json");
+        // Load rollup-specific config from rollups directory
+        string memory rollupPath = string.concat(root, "/script/config/rollups/", rollup, ".json");
         string memory rollupJson = vm.readFile(rollupPath);
         RollupConfig memory rollupConfig = abi.decode(vm.parseJson(rollupJson), (RollupConfig));
         
@@ -136,8 +138,8 @@ contract MigrateRollup is Script {
         console.log("  L2 Chain ID:", rollupConfig.l2ChainId);
         console.log("  ProxyAdmin Owner:", rollupConfig.proxyAdmin.owner);
         
-        // Load Phase 1 shared infrastructure addresses from compose.json
-        string memory composePath = string.concat(root, "/script/predeploy/compose.json");
+        // Load Phase 1 shared infrastructure addresses from compose directory
+        string memory composePath = string.concat(root, "/script/config/compose/", composeNetwork, ".json");
         string memory composeJson = vm.readFile(composePath);
         ComposeDeployment memory composeConfig = abi.decode(vm.parseJson(composeJson), (ComposeDeployment));
         
@@ -156,6 +158,8 @@ contract MigrateRollup is Script {
         migrationInput.set(migrationInput.l1ERC721Bridge.selector, rollupConfig.l1ERC721Bridge);
         
         // Populate migration input from compose config
+        migrationInput.set(migrationInput.composeProxyAdminOwner.selector, composeConfig.proxyAdminOwner);
+
         migrationInput.set(
             migrationInput.composeSuperchainConfig.selector,
             composeConfig.superchainConfig
@@ -511,12 +515,8 @@ contract MigrateRollup is Script {
         return input.rollupProxyAdminOwner();
     }
     
-    /// @notice Get the Compose ProxyAdmin owner address from config
-    function getComposeOwner() internal returns (address) {
-        string memory root = vm.projectRoot();
-        string memory composePath = string.concat(root, "/script/predeploy/compose.json");
-        string memory composeJson = vm.readFile(composePath);
-        ComposeDeployment memory composeConfig = abi.decode(vm.parseJson(composeJson), (ComposeDeployment));
-        return composeConfig.proxyAdminOwner;
+    /// @notice Get the Compose ProxyAdmin owner address from loaded input
+    function getComposeOwner() internal view returns (address) {
+        return input.composeProxyAdminOwner();
     }
 }
