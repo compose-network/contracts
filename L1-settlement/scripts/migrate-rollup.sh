@@ -145,55 +145,32 @@ if forge script "${FORGE_ARGS[@]}"; then
     else
         echo -e "\n${GREEN}Phase 2 migration complete!${NC}"
         
-        # Parse deployment addresses from broadcast output
-        BROADCAST_FILE="broadcast/MigrateRollup.s.sol/$CHAIN_ID/run-latest.json"
+        # Save migration data to structured deployment file
+        echo ""
+        echo "Saving migration data..."
         
-        if [ -f "$BROADCAST_FILE" ]; then
-            echo ""
-            echo "Extracting deployed implementation addresses..."
-            
-            # Extract implementation addresses
-            SYSTEM_CONFIG_IMPL=$(jq -r '.transactions[] | select(.contractName == "SystemConfig") | .contractAddress' "$BROADCAST_FILE" | head -1)
-            PORTAL_IMPL=$(jq -r '.transactions[] | select(.contractName == "OptimismPortal2") | .contractAddress' "$BROADCAST_FILE" | head -1)
-            XDM_IMPL=$(jq -r '.transactions[] | select(.contractName == "L1CrossDomainMessenger") | .contractAddress' "$BROADCAST_FILE" | head -1)
-            BRIDGE_IMPL=$(jq -r '.transactions[] | select(.contractName == "L1StandardBridge") | .contractAddress' "$BROADCAST_FILE" | head -1)
-            ERC721_IMPL=$(jq -r '.transactions[] | select(.contractName == "L1ERC721Bridge") | .contractAddress' "$BROADCAST_FILE" | head -1)
-            
-            echo -e "${GREEN}Migration successful!${NC}"
-            echo ""
-            echo "New implementations deployed:"
-            echo "  SystemConfig:            ${SYSTEM_CONFIG_IMPL:-not found}"
-            echo "  OptimismPortal2:         ${PORTAL_IMPL:-not found}"
-            echo "  L1CrossDomainMessenger:  ${XDM_IMPL:-not found}"
-            echo "  L1StandardBridge:        ${BRIDGE_IMPL:-not found}"
-            echo "  L1ERC721Bridge:          ${ERC721_IMPL:-not found}"
-            echo ""
-            
-            # Update deployments.json with Phase 2 information
-            echo "Updating deployments.json..."
-            
-            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-            
-            # Create Phase 2 entry
-            jq --arg network "$NETWORK" \
-               --arg timestamp "$TIMESTAMP" \
-               --arg systemConfigImpl "${SYSTEM_CONFIG_IMPL:-}" \
-               --arg portalImpl "${PORTAL_IMPL:-}" \
-               --arg xdmImpl "${XDM_IMPL:-}" \
-               --arg bridgeImpl "${BRIDGE_IMPL:-}" \
-               --arg erc721Impl "${ERC721_IMPL:-}" \
-               '.[$network].phase = "phase2-rollup-migration" |
-                .[$network].migrated_at = $timestamp |
-                .[$network].implementations = {
-                    "SystemConfig": $systemConfigImpl,
-                    "OptimismPortal2": $portalImpl,
-                    "L1CrossDomainMessenger": $xdmImpl,
-                    "L1StandardBridge": $bridgeImpl,
-                    "L1ERC721Bridge": $erc721Impl
-                }' deployments.json > deployments.json.tmp && mv deployments.json.tmp deployments.json
-            
-            echo -e "${GREEN}Deployment addresses saved to deployments.json${NC}"
-        fi
+        # Extract proxy addresses from rollup config
+        SYSTEM_CONFIG_PROXY=$(jq -r '.l1SystemConfigAddress' "$ROLLUP_CONFIG")
+        OPTIMISM_PORTAL_PROXY=$(jq -r '.optimismPortal.proxy' "$ROLLUP_CONFIG")
+        L1_CROSS_DOMAIN_MESSENGER_PROXY=$(jq -r '.l1CrossDomainMessenger' "$ROLLUP_CONFIG")
+        L1_STANDARD_BRIDGE_PROXY=$(jq -r '.l1StandardBridge' "$ROLLUP_CONFIG")
+        L1_ERC721_BRIDGE_PROXY=$(jq -r '.l1ERC721Bridge' "$ROLLUP_CONFIG")
+        
+        # Extract old implementation address
+        OLD_OPTIMISM_PORTAL_IMPL=$(jq -r '.optimismPortal.impl' "$ROLLUP_CONFIG")
+        
+        # Call save-migration script
+        ./scripts/save-migration.sh \
+            "$ROLLUP" \
+            "$COMPOSE_NETWORK" \
+            "$CHAIN_ID" \
+            "false" \
+            "$SYSTEM_CONFIG_PROXY" \
+            "$OPTIMISM_PORTAL_PROXY" \
+            "$L1_CROSS_DOMAIN_MESSENGER_PROXY" \
+            "$L1_STANDARD_BRIDGE_PROXY" \
+            "$L1_ERC721_BRIDGE_PROXY" \
+            "$OLD_OPTIMISM_PORTAL_IMPL"
     fi
 else
     echo -e "\n${RED}Migration failed!${NC}"

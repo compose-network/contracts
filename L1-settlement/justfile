@@ -81,25 +81,37 @@ deploy-multi *NETWORKS:
     echo ""
     just show-deployments
 
-# Show all deployments from deployments.json
+# Show all deployments from deployments/compose/
 show-deployments:
     #!/usr/bin/env bash
-    if [ ! -f deployments.json ]; then
+    if [ ! -d "deployments/compose" ]; then
         echo "No deployments found. Deploy contracts first."
         exit 1
     fi
     echo "=== Compose Settlement Deployments ==="
     echo ""
-    jq -r 'to_entries[] | "\\(.key) (Chain ID: \\(.value.chain_id)):\n  Phase: \\(.value.phase // "unknown")\n  \n  Governance:\n    ProxyAdmin:              \\(.value.ProxyAdmin)\n    SuperchainConfig:        \\(.value.SuperchainConfig.proxy)\n  \n  Settlement:\n    DisputeGameFactory:      \\(.value.DisputeGameFactory.proxy)\n    AnchorStateRegistry:     \\(.value.AnchorStateRegistry.proxy)\n    ComposeDisputeGame:      \\(.value.ComposeDisputeGame.implementation)\n  \n  Liquidity:\n    ETHLockbox:              \\(.value.ETHLockbox.proxy)\n  \n  Deployed: \\(.value.deployed_at)\n  ----------------------------------------\n"' deployments.json
+    for file in deployments/compose/*.json; do
+        if [ -f "$file" ]; then
+            network=$(basename "$file" .json)
+            echo " $network:"
+            jq -r '.["'"$network"'"] | "  Chain ID: \(.chainId)\n  Deployment Block: \(.deployment_block)\n  Deployer: \(.deployer)\n  Timestamp: \(.timestamp)\n  Contracts: \([.contracts | keys[]] | join(", "))\n"' "$file"
+        fi
+    done
+    echo "----------------------------------------"
+    echo "Files located in: deployments/compose/"
 
 # Get deployment addresses for specific network
 get-deployment NETWORK:
     #!/usr/bin/env bash
-    if [ ! -f deployments.json ]; then
-        echo "No deployments found."
+    DEPLOYMENT_FILE="deployments/compose/{{NETWORK}}.json"
+    if [ ! -f "$DEPLOYMENT_FILE" ]; then
+        echo "No deployment found for network {{NETWORK}}."
+        echo "Available deployments:"
+        ls -1 deployments/compose/*.json 2>/dev/null | basename -s .json || echo "  None"
         exit 1
     fi
-    jq ".\"{{NETWORK}}\"" deployments.json
+    echo "=== Deployment for {{NETWORK}} ==="
+    jq '.' "$DEPLOYMENT_FILE"
 
 # ============================================================================
 # Migration Commands (Phase 2)
@@ -126,8 +138,11 @@ migrate-fork ROLLUP COMPOSE_NETWORK BLOCK:
     set -euo pipefail
     source scripts/parse-network.sh {{COMPOSE_NETWORK}}
     
+    ROLLUP_CONFIG="script/config/rollups/{{ROLLUP}}.json"
+    L2_CHAIN_ID=$(jq -r '.l2ChainId' "$ROLLUP_CONFIG")
+    
     # Read rollup ProxyAdmin owner from config (for --sender impersonation)
-    ROLLUP_OWNER=$(jq -r '.proxyAdmin.owner' "script/config/rollups/{{ROLLUP}}.json")
+    ROLLUP_OWNER=$(jq -r '.proxyAdmin.owner' "$ROLLUP_CONFIG")
     
     echo "Testing migration on fork at block {{BLOCK}}..."
     echo "  Rollup: {{ROLLUP}}"
@@ -136,14 +151,45 @@ migrate-fork ROLLUP COMPOSE_NETWORK BLOCK:
     echo "  Impersonating: $ROLLUP_OWNER (rollup ProxyAdmin owner)"
     echo ""
     
-    forge script script/migrate/MigrateRollup.s.sol:MigrateRollup \
+    if forge script script/migrate/MigrateRollup.s.sol:MigrateRollup \
         --sig 'run(string,string,bool)' \
         --fork-url "$NETWORK_RPC_URL" \
         --fork-block-number {{BLOCK}} \
         --sender "$ROLLUP_OWNER" \
         --unlocked \
         -vvvv \
-        {{ROLLUP}} {{COMPOSE_NETWORK}} false
+        {{ROLLUP}} {{COMPOSE_NETWORK}} false; then
+        
+        echo ""
+        echo "Fork migration successful! Saving migration data..."
+        
+        # Extract proxy addresses from rollup config
+        SYSTEM_CONFIG_PROXY=$(jq -r '.l1SystemConfigAddress' "$ROLLUP_CONFIG")
+        OPTIMISM_PORTAL_PROXY=$(jq -r '.optimismPortal.proxy' "$ROLLUP_CONFIG")
+        L1_CROSS_DOMAIN_MESSENGER_PROXY=$(jq -r '.l1CrossDomainMessenger' "$ROLLUP_CONFIG")
+        L1_STANDARD_BRIDGE_PROXY=$(jq -r '.l1StandardBridge' "$ROLLUP_CONFIG")
+        L1_ERC721_BRIDGE_PROXY=$(jq -r '.l1ERC721Bridge' "$ROLLUP_CONFIG")
+        OLD_OPTIMISM_PORTAL_IMPL=$(jq -r '.optimismPortal.impl' "$ROLLUP_CONFIG")
+        
+        # Call save-migration script with IS_FORK=true
+        ./scripts/save-migration.sh \
+            "{{ROLLUP}}" \
+            "{{COMPOSE_NETWORK}}" \
+            "$L2_CHAIN_ID" \
+            "$NETWORK_CHAIN_ID" \
+            "true" \
+            "$SYSTEM_CONFIG_PROXY" \
+            "$OPTIMISM_PORTAL_PROXY" \
+            "$L1_CROSS_DOMAIN_MESSENGER_PROXY" \
+            "$L1_STANDARD_BRIDGE_PROXY" \
+            "$L1_ERC721_BRIDGE_PROXY" \
+            "$OLD_OPTIMISM_PORTAL_IMPL"
+        
+        echo "Fork migration data saved to deployments/rollups/fork/{{ROLLUP}}.json"
+    else
+        echo "Fork migration failed!"
+        exit 1
+    fi
 
 # ============================================================================
 # Configuration
@@ -172,6 +218,206 @@ validate-config NETWORK:
     forge script script/deploy/DeploySharedInfra.s.sol:DeploySharedInfra \
         --sig "validateConfig()" \
         || echo "✗ Configuration validation failed"
+
+# List all available deployment files
+list-deployments:
+    #!/usr/bin/env bash
+    echo "=== Available Deployment Files ==="
+    if [ -d "deployments/compose" ]; then
+        for file in deployments/compose/*.json; do
+            if [ -f "$file" ]; then
+                basename "$file" .json
+            fi
+        done
+    else
+        echo "No deployment files found. Run 'just deploy-network <network>' first."
+    fi
+
+# Validate deployment file integrity
+validate-deployment NETWORK:
+    #!/usr/bin/env bash
+    DEPLOYMENT_FILE="deployments/compose/{{NETWORK}}.json"
+    if [ ! -f "$DEPLOYMENT_FILE" ]; then
+        echo "❌ Deployment file not found: $DEPLOYMENT_FILE"
+        exit 1
+    fi
+    
+    echo "=== Validating Deployment: {{NETWORK}} ==="
+    
+    # Check required fields
+    if ! jq -e '.["{{NETWORK}}"].chainId' "$DEPLOYMENT_FILE" > /dev/null; then
+        echo "❌ Missing chainId"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{NETWORK}}"].deployment_block' "$DEPLOYMENT_FILE" > /dev/null; then
+        echo "❌ Missing deployment_block"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{NETWORK}}"].deployer' "$DEPLOYMENT_FILE" > /dev/null; then
+        echo "❌ Missing deployer"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{NETWORK}}"].contracts' "$DEPLOYMENT_FILE" > /dev/null; then
+        echo "❌ Missing contracts section"
+        exit 1
+    fi
+    
+    # Check contract addresses
+    echo "✅ Required fields present"
+    echo ""
+    echo "Contract addresses:"
+    jq -r '.["{{NETWORK}}"].contracts | to_entries[] | 
+      if .value.proxyAddress != "" then 
+        "  \(.key):\n    Proxy: \(.value.proxyAddress)\n    Impl:  \(.value.implAddress)" 
+      else 
+        "  \(.key): \(.value.implAddress)" 
+      end' "$DEPLOYMENT_FILE"
+    echo ""
+    echo "✅ Deployment file is valid!"
+
+# ============================================================================
+# Rollup Migration Management
+# ============================================================================
+
+# Show all rollup migrations
+show-migrations:
+    #!/usr/bin/env bash
+    if [ ! -d "deployments/rollups" ]; then
+        echo "No migrations found. Migrate rollups first."
+        exit 1
+    fi
+    echo "=== Rollup Migrations ==="
+    echo ""
+    
+    # Show regular migrations
+    if [ -d "deployments/rollups" ] && [ "$(ls -A deployments/rollups/*.json 2>/dev/null)" ]; then
+        echo "Regular Migrations:"
+        for file in deployments/rollups/*.json; do
+            if [ -f "$file" ]; then
+                rollup=$(basename "$file" .json)
+                echo "  $rollup:"
+                jq -r '.["'"$rollup"'"] | "    L2 Chain ID: \(.l2ChainId)\n    Compose Network: \(.composeNetwork)\n    Migration Block: \(.migration_block)\n    Migrator: \(.migrator)\n    Timestamp: \(.timestamp)\n    Contracts: \([.contracts | keys[]] | join(", "))\n"' "$file"
+            fi
+        done
+    fi
+    
+    # Show fork migrations
+    if [ -d "deployments/rollups/fork" ] && [ "$(ls -A deployments/rollups/fork/*.json 2>/dev/null)" ]; then
+        echo "Fork Migrations:"
+        for file in deployments/rollups/fork/*.json; do
+            if [ -f "$file" ]; then
+                rollup=$(basename "$file" .json)
+                echo "  $rollup (fork):"
+                jq -r '.["'"$rollup"'"] | "    L2 Chain ID: \(.l2ChainId)\n    Compose Network: \(.composeNetwork)\n    Migration Block: \(.migration_block)\n    Migrator: \(.migrator)\n    Timestamp: \(.timestamp)\n    Contracts: \([.contracts | keys[]] | join(", "))\n"' "$file"
+            fi
+        done
+    fi
+    
+    echo "----------------------------------------"
+    echo "Files located in: deployments/rollups/"
+
+# Get migration details for specific rollup
+get-migration ROLLUP TYPE="regular":
+    #!/usr/bin/env bash
+    if [ "{{TYPE}}" = "fork" ]; then
+        MIGRATION_FILE="deployments/rollups/fork/{{ROLLUP}}.json"
+    else
+        MIGRATION_FILE="deployments/rollups/{{ROLLUP}}.json"
+    fi
+    
+    if [ ! -f "$MIGRATION_FILE" ]; then
+        echo "No migration found for rollup {{ROLLUP}} ({{TYPE}})."
+        echo "Available migrations:"
+        ls -1 deployments/rollups/*.json 2>/dev/null | xargs -n1 basename -s .json || echo "  None"
+        if [ -d "deployments/rollups/fork" ]; then
+            echo "Fork migrations:"
+            ls -1 deployments/rollups/fork/*.json 2>/dev/null | xargs -n1 basename -s .json || echo "  None"
+        fi
+        exit 1
+    fi
+    echo "=== Migration for {{ROLLUP}} ({{TYPE}}) ==="
+    jq '.' "$MIGRATION_FILE"
+
+# List all available migration files
+list-migrations:
+    #!/usr/bin/env bash
+    echo "=== Available Migration Files ==="
+    echo ""
+    echo "Regular Migrations:"
+    if [ -d "deployments/rollups" ]; then
+        for file in deployments/rollups/*.json; do
+            if [ -f "$file" ]; then
+                basename "$file" .json
+            fi
+        done
+    else
+        echo "  None"
+    fi
+    echo ""
+    echo "Fork Migrations:"
+    if [ -d "deployments/rollups/fork" ]; then
+        for file in deployments/rollups/fork/*.json; do
+            if [ -f "$file" ]; then
+                basename "$file" .json
+            fi
+        done
+    else
+        echo "  None"
+    fi
+
+# Validate migration file integrity
+validate-migration ROLLUP TYPE="regular":
+    #!/usr/bin/env bash
+    if [ "{{TYPE}}" = "fork" ]; then
+        MIGRATION_FILE="deployments/rollups/fork/{{ROLLUP}}.json"
+    else
+        MIGRATION_FILE="deployments/rollups/{{ROLLUP}}.json"
+    fi
+    
+    if [ ! -f "$MIGRATION_FILE" ]; then
+        echo "❌ Migration file not found: $MIGRATION_FILE"
+        exit 1
+    fi
+    
+    echo "=== Validating Migration: {{ROLLUP}} ({{TYPE}}) ==="
+    
+    # Check required fields
+    if ! jq -e '.["{{ROLLUP}}"].l2ChainId' "$MIGRATION_FILE" > /dev/null; then
+        echo "❌ Missing l2ChainId"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{ROLLUP}}"].composeNetwork' "$MIGRATION_FILE" > /dev/null; then
+        echo "❌ Missing composeNetwork"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{ROLLUP}}"].migration_block' "$MIGRATION_FILE" > /dev/null; then
+        echo "❌ Missing migration_block"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{ROLLUP}}"].migrator' "$MIGRATION_FILE" > /dev/null; then
+        echo "❌ Missing migrator"
+        exit 1
+    fi
+    
+    if ! jq -e '.["{{ROLLUP}}"].contracts' "$MIGRATION_FILE" > /dev/null; then
+        echo "❌ Missing contracts section"
+        exit 1
+    fi
+    
+    # Check contract upgrades
+    echo "✅ Required fields present"
+    echo ""
+    echo "Upgraded contracts:"
+    jq -r '.["{{ROLLUP}}"].contracts | to_entries[] | 
+      "  \(.key):\n    Proxy: \(.value.proxyAddress)\n    Old Impl: \(.value.oldImplAddress)\n    New Impl: \(.value.newImplAddress)"' "$MIGRATION_FILE"
+    echo ""
+    echo "✅ Migration file is valid!"
 
 # ============================================================================
 # Helper Functions (Private)
