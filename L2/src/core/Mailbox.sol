@@ -208,13 +208,6 @@ contract Mailbox is IMailbox {
             MessageHeader(chainMessageSender, block.chainid, sender, receiver, sessionId, label)
         );
 
-        if (inboxRootPerChain[chainMessageSender] == bytes32(0)) {
-            chainIDsInbox.push(chainMessageSender);
-        }
-        inboxRootPerChain[chainMessageSender] = keccak256(
-            abi.encode(inboxRootPerChain[chainMessageSender], key, data)
-        );
-
         emit NewInboxKey(messageHeaderListInbox.length - 1, key);
     }
 
