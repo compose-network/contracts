@@ -119,10 +119,10 @@ contract Mailbox is IMailbox {
         bytes memory data = inbox[key];
 
         if (inboxRootPerChain[chainMessageSender] == bytes32(0)) {
-            chainIDsOutbox.push(chainMessageSender);
+            chainIDsInbox.push(chainMessageSender);
         }
         inboxRootPerChain[chainMessageSender] = keccak256(
-            abi.encode(outboxRootPerChain[chainMessageSender], key, data)
+            abi.encode(inboxRootPerChain[chainMessageSender], key, data)
         );
 
         return data;
