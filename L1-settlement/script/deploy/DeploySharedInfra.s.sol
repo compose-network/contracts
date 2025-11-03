@@ -246,22 +246,14 @@ contract DeploySharedInfra is Script {
     function loadInputFromEnvironment() internal returns (DeploySharedInfraInput) {
         DeploySharedInfraInput envInput = new DeploySharedInfraInput();
         
-        address guardian = ComposeConfig.guardian();
-        address proxyAdminOwner = ComposeConfig.proxyAdminOwner();
-        address authorizedProposer = ComposeConfig.authorizedProposer();
-        address sp1Verifier = ComposeConfig.sp1Verifier();
-        
-        // Use deployer as defaults if not set (for testing)
-        if (guardian == address(0)) guardian = msg.sender;
-        if (proxyAdminOwner == address(0)) proxyAdminOwner = msg.sender;
-        if (authorizedProposer == address(0)) authorizedProposer = msg.sender;
-        if (sp1Verifier == address(0)) sp1Verifier = msg.sender; // Mock in tests
-        
-        envInput.set(envInput.guardian.selector, guardian);
-        envInput.set(envInput.proxyAdminOwner.selector, proxyAdminOwner);
-        envInput.set(envInput.authorizedProposer.selector, authorizedProposer);
-        envInput.set(envInput.sp1Verifier.selector, sp1Verifier);
+        // All required config values will revert if not set in networks.toml
+        envInput.set(envInput.guardian.selector, ComposeConfig.guardian());
+        envInput.set(envInput.proxyAdminOwner.selector, ComposeConfig.proxyAdminOwner());
+        envInput.set(envInput.authorizedProposer.selector, ComposeConfig.authorizedProposer());
+        envInput.set(envInput.sp1Verifier.selector, ComposeConfig.sp1Verifier());
         envInput.set(envInput.aggregationVkey.selector, ComposeConfig.aggregationVkey());
+        
+        // Optional config with sensible defaults
         envInput.set(envInput.proofMaturityDelaySeconds.selector, ComposeConfig.proofMaturityDelaySeconds());
         envInput.set(envInput.disputeGameFinalityDelaySeconds.selector, ComposeConfig.disputeGameFinalityDelaySeconds());
         envInput.set(envInput.disputeGameInitBond.selector, ComposeConfig.disputeGameInitBond());
@@ -273,8 +265,9 @@ contract DeploySharedInfra is Script {
     function deployProxyAdmin() internal {
         console.log("\n1. Deploying ProxyAdmin...");
         
-        vm.broadcast(msg.sender);
-        ProxyAdmin proxyAdmin = new ProxyAdmin(msg.sender);
+        address deployer = input.proxyAdminOwner();
+        vm.broadcast(deployer);
+        ProxyAdmin proxyAdmin = new ProxyAdmin(deployer);
         
         ComposeDeployUtils.label(address(proxyAdmin), "ComposeProxyAdmin");
         console.log("  ProxyAdmin deployed at:", address(proxyAdmin));
@@ -286,7 +279,7 @@ contract DeploySharedInfra is Script {
     function deployBaseImplementations() internal {
         console.log("\n2. Deploying Base Implementations...");
         
-        vm.startBroadcast(msg.sender);
+        vm.startBroadcast(input.proxyAdminOwner());
         
         // SuperchainConfig implementation
         SuperchainConfig superchainConfigImpl = new SuperchainConfig();
@@ -325,7 +318,7 @@ contract DeploySharedInfra is Script {
         
         IProxyAdmin proxyAdmin = output.composeProxyAdmin();
         
-        vm.startBroadcast(msg.sender);
+        vm.startBroadcast(input.proxyAdminOwner());
         
         // SuperchainConfig Proxy
         Proxy superchainConfigProxy = new Proxy(address(proxyAdmin));
@@ -398,7 +391,7 @@ contract DeploySharedInfra is Script {
     function deployDisputeGameImplementation() internal {
         console.log("\n4. Deploying ComposeDisputeGame Implementation...");
         
-        vm.startBroadcast(msg.sender);
+        vm.startBroadcast(input.proxyAdminOwner());
         ComposeDisputeGame disputeGameImpl = new ComposeDisputeGame(
             input.sp1Verifier(),
             input.aggregationVkey(),
@@ -420,22 +413,21 @@ contract DeploySharedInfra is Script {
         IDisputeGameFactory dgf = output.composeDisputeGameFactoryProxy();
         IComposeAnchorStateRegistry asr = output.composeAnchorStateRegistryProxy();
         
-        vm.startBroadcast(msg.sender);
-        
-        // Set game implementation
+        // Set game implementation and init bond (owner-only)
+        vm.startBroadcast(input.proxyAdminOwner());
         dgf.setImplementation(GameType.wrap(COMPOSE_GAME_TYPE), output.composeDisputeGameImpl());
         console.log("  Game type", COMPOSE_GAME_TYPE, "registered in DisputeGameFactory");
         
-        // Set init bond
         if (input.disputeGameInitBond() > 0) {
             dgf.setInitBond(GameType.wrap(COMPOSE_GAME_TYPE), input.disputeGameInitBond());
             console.log("  Init bond set to:", input.disputeGameInitBond());
         }
+        vm.stopBroadcast();
         
-        // Set respected game type in AnchorStateRegistry
+        // Set respected game type in AnchorStateRegistry (guardian-only)
+        vm.startBroadcast(input.guardian());
         asr.setRespectedGameType(GameType.wrap(COMPOSE_GAME_TYPE));
         console.log("  Game type", COMPOSE_GAME_TYPE, "set as respected in AnchorStateRegistry");
-        
         vm.stopBroadcast();
     }
     
