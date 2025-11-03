@@ -17,20 +17,22 @@ contract FundSwapper is Script {
     /**
      * @notice Main funding function
      * @param swapperAddress Address of the swapper contract
+     * @param wethAddr Address of the WETH token
+     * @param usdcAddr Address of the USDC token
+     * @param ssvAddr Address of the SSV token
      * @param wethAmount Amount of WETH to mint (in wei)
      * @param usdcAmount Amount of USDC to mint (in wei, 18 decimals)
      * @param ssvAmount Amount of SSV to mint (in wei, 18 decimals)
      */
     function run(
         address swapperAddress,
+        address wethAddr,
+        address usdcAddr,
+        address ssvAddr,
         uint256 wethAmount,
         uint256 usdcAmount,
         uint256 ssvAmount
     ) public {
-        // Read token addresses from environment
-        address wethAddr = vm.envAddress("WETH_ADDRESS");
-        address usdcAddr = vm.envAddress("USDC_ADDRESS");
-        address ssvAddr = vm.envAddress("SSV_ADDRESS");
 
         console.log("========================================");
         console.log("Funding Swapper with Liquidity");
@@ -49,6 +51,9 @@ contract FundSwapper is Script {
         console.log("========================================");
 
         vm.startBroadcast();
+        console.log("ETH Balance for account 0x64F38Fe8EC155134DF973012ED8bb40f10D31F77:");
+        console.log(address(0x64F38Fe8EC155134DF973012ED8bb40f10D31F77).balance);
+
 
         // Mint WETH to swapper
         // Note: WETH9 doesn't have a mint function, so we deposit ETH
@@ -84,10 +89,19 @@ contract FundSwapper is Script {
     /**
      * @notice Helper function to fund with default amounts
      * @param swapperAddress Address of the swapper contract
+     * @param wethAddr Address of the WETH token
+     * @param usdcAddr Address of the USDC token
+     * @param ssvAddr Address of the SSV token
      */
-    function runDefault(address swapperAddress) public {
+    function runDefault(
+        address swapperAddress,
+        address wethAddr,
+        address usdcAddr,
+        address ssvAddr
+    ) public {
         // Default amounts: 1,000,000 of each token (1M * 10^18)
-        uint256 defaultAmount = 1_000_000 ether;
-        run(swapperAddress, defaultAmount, defaultAmount, defaultAmount);
+        uint256 defaultAmountETH = 100 ether;
+        uint256 defaultAmountTokens = 1_000 ether;
+        run(swapperAddress, wethAddr, usdcAddr, ssvAddr, defaultAmountETH, defaultAmountTokens, defaultAmountTokens);
     }
 }
