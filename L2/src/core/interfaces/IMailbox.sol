@@ -37,6 +37,9 @@ interface IMailbox {
     /// @notice Error when the ID is invalid (out of range).
     error InvalidId();
 
+    /// @notice Error when trying to write a message that already exists.
+    error MessageAlreadyExists();
+
     /// @notice Emitted when a new key is added to the inbox.
     /// @param index The position in the header list.
     /// @param key The message key.
