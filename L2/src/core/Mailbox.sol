@@ -102,7 +102,7 @@ contract Mailbox is IMailbox {
         address sender,
         uint256 sessionId,
         bytes calldata label
-    ) external view returns (bytes memory message) {
+    ) external returns (bytes memory message) {
         bytes32 key = getKey(
             chainMessageSender,
             block.chainid,
@@ -116,7 +116,16 @@ contract Mailbox is IMailbox {
             revert MessageNotFound();
         }
 
-        return inbox[key];
+        bytes memory data = inbox[key];
+
+        if (inboxRootPerChain[chainMessageSender] == bytes32(0)) {
+            chainIDsOutbox.push(chainMessageSender);
+        }
+        inboxRootPerChain[chainMessageSender] = keccak256(
+            abi.encode(outboxRootPerChain[chainMessageSender], key, data)
+        );
+
+        return data;
     }
 
     /// @notice Writes a message to the outbox to send to another chain.

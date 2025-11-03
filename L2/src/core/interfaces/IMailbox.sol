@@ -61,7 +61,7 @@ interface IMailbox {
         address sender,
         uint256 sessionId,
         bytes calldata label
-    ) external view returns (bytes memory message);
+    ) external returns (bytes memory message);
 
     /// @notice Function to write a message to the outbox.
     /// @param chainDest Destination chain ID.

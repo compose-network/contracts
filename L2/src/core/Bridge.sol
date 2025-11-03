@@ -122,7 +122,7 @@ contract Bridge is IBridge {
         uint256 chainDest,
         address destBridge,
         uint256 sessionId
-    ) external view returns (bytes memory) {
+    ) external returns (bytes memory) {
         return
             mailbox.read(chainDest, destBridge, sessionId, "ACK SEND");
     }
