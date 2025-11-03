@@ -2,14 +2,11 @@
 
 L1 smart contracts for Compose's aggregated settlement infrastructure. Enables multiple OP Stack rollups (v3.x.x) to share settlement infrastructure with validity proofs and pooled liquidity.
 
-## What is Compose?
-
-Compose provides **shared L1 settlement infrastructure** for multiple OP Stack rollups:
+Compose L1 provides **shared L1 settlement infrastructure** for multiple OP Stack rollups:
 
 - **Shared Infrastructure**: Deploy once, use for all rollups
 - **Validity Proofs**: SP1-powered aggregated proofs for superblocks  
 - **Pooled Liquidity**: Shared ETH lockbox for efficient capital usage
-- **Lower Costs**: Amortize L1 settlement costs across multiple rollups
 
 ## Architecture
 
