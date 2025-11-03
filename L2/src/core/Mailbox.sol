@@ -202,6 +202,11 @@ contract Mailbox is IMailbox {
             sessionId,
             label
         );
+
+        if (createdKeys[key]) {
+            revert MessageAlreadyExists();
+        }
+
         inbox[key] = data;
         createdKeys[key] = true;
         messageHeaderListInbox.push(
