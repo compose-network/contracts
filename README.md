@@ -1,78 +1,193 @@
-<!-- This is a comment in Markdown 
-
-🛠 Repository Setup Instructions
-
-After forking or cloning this template, run the following:
-
-1. Replace all occurrences of 'template-repository' with your actual repo name:
-   sed -i 's/template-repository/your-repo-name/g' README.md
-
-2. Fill in all TODO sections below.
-
-3. Update [.github/CODEOWNERS](.github/CODEOWNERS) to reflect your team or maintainers.
-
-4. Check `.gitignore` and `.dockerignore` files and modify them according to your project's structure.
-
-5. Update GitHub Actions in `.github/workflows/` if needed (e.g., rename, add secrets).
-
--->
 <p align="center"><img src="https://framerusercontent.com/images/9FedKxMYLZKR9fxBCYj90z78.png?scale-down-to=512&width=893&height=363" alt="SSV Network"></p>
 
-<img src="https://github.com/ssvlabs/template-repository/actions/workflows/main.yml/badge.svg" alt="Check" />
+
 <a href="https://discord.com/invite/ssvnetworkofficial"><img src="https://img.shields.io/badge/discord-%23ssvlabs-8A2BE2.svg" alt="Discord" /></a>
 
-## ✨ Introduction
+# Compose Network Contracts
 
-<!-- Describe the purpose of this repository. -->
-This project provides a foundational structure for [describe your use case: e.g., smart contracts, node operators, CLI tools].
+⚠️ **WARNING: HEAVY DEVELOPMENT** ⚠️
 
-## ⚙️  How to Build
+This project is currently in **heavy development phase** and has **NOT been audited**. The contracts are **NOT production-ready** and should not be used in mainnet environments or with real assets. Use at your own risk.
 
-```bash
-# Clone the repo
-git clone https://github.com/ssvlabs/template-repository.git
+---
 
-# Navigate
-cd your-repo-name
+This repository contains the smart contracts for the Compose Network, organized into two main components:
 
-# Install dependencies
-TODO
+## Repository Structure
 
-# Build the code
-TODO
+```
+compose-contracts/
+├── L1-settlement/          # L1 settlement layer contracts
+│   ├── src/               # ComposeL2OutputOracle, ComposeDisputeGame
+│   ├── script/            # Deployment scripts
+│   ├── test/              # Contract tests
+│   ├── justfile           # Deployment commands
+│   └── README.md          # L1 documentation
+│
+└── L2/                    # L2 execution layer contracts
+    ├── src/               # Mailbox, Bridge, PingPong, BridgeableToken
+    ├── script/            # Deployment scripts
+    ├── test/              # Contract tests
+    ├── justfile           # Deployment commands
+    └── README.md          # L2 documentation
 ```
 
+## Components
 
-## 🚀 How to Run
+### L1-settlement
 
+The L1 settlement layer contracts handle:
+- **ComposeL2OutputOracle** - Manages L2 output proposals with SP1 proof verification
+- **ComposeDisputeGame** - Handles dispute resolution for L2 outputs  
+- **DisputeGameFactory** - Factory for creating dispute game instances
 
+**📚 Full documentation:** [L1-settlement/README.md](L1-settlement/README.md)
+
+**Quick start:**
 ```bash
-# Run the main service
-npm start
-# or
-go run main.go
-# or
-python app.py
+cd L1-settlement
+just setup
+just build
+just deploy-network sepolia
 ```
 
-## 🧪 Testing
+### L2
 
+The L2 execution layer contracts handle:
+- **Mailbox** - Cross-rollup message handling and coordination
+- **PingPong** - Cross-rollup messaging demonstration
+- **Bridge** - Asset bridging between rollups
+- **BridgeableToken** - Token with cross-rollup support
+
+**Full documentation:** [L2/README.md](L2/README.md)
+
+**Quick start:**
 ```bash
-npm test
-# or
-go test ./...
-# or
-pytest
+cd L2
+just init-config
+just build
+just deploy-network rollup-a
 ```
 
+## Getting Started
 
-## Contributing
+### Important for new deployments
 
-We welcome community contributions!
+To perform a new deployment, open a new PR with the updated `deployments.json` file. Please specify unique network names.
 
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-- Create a branch, push your changes, and open a PR.
+### Prerequisites
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- [just](https://github.com/casey/just#installation)
+- [jq](https://stedolan.github.io/jq/)
+
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/compose-network/compose-contracts.git
+cd compose-contracts
+
+# Initialize submodules
+git submodule update --init --recursive
+
+# For L1 deployment
+cd L1-settlement
+just setup
+just build
+
+# For L2 deployment
+cd ../L2
+just init-config  # Create config files
+just build
+just deploy-network rollup-a
+```
+
+## 📖 Documentation
+
+### Repository Structure & Setup
+- **[Quick Reference](QUICK_REFERENCE.md)** - Essential commands
+
+### L1 Settlement Layer
+- **[L1 README](L1-settlement/README.md)** - Main L1 documentation
+- **[Quick Start](L1-settlement/GETTING_STARTED.md)** - Get started guide
+- **[Deployment Guide](L1-settlement/docs/DEPLOYMENT_GUIDE.md)** - Deploy contracts
+- **[Network Configuration](L1-settlement/docs/NETWORK_CONFIG.md)** - Configure networks
+- **[Contract Parameters](L1-settlement/docs/CONTRACT_PARAMS.md)** - Parameter reference
+
+### L2 Execution Layer
+- **[L2 README](L2/README.md)** - Main L2 documentation
+- **[Quick Start](L2/GETTING_STARTED.md)** - Get started guide
+- **[Deployment Scripts](L2/script/)** - Deployment implementations
+
+## Architecture
+
+```
+┌─────────────────────────────────────────┐
+│          L1 Networks                    │
+│  (Ethereum, Hoodi, etc.)                │
+│                                         │
+│  ┌────────────────────────────────────┐ │
+│  │  ComposeL2OutputOracle (Proxy)     │ │
+│  │  - Verifies L2 state roots         │ │
+│  │  - Uses SP1 proofs                 │ │
+│  └────────────────────────────────────┘ │
+│                                         │
+│  ┌────────────────────────────────────┐ │
+│  │  ComposeDisputeGame                │ │
+│  │  - Dispute resolution              │ │
+│  └────────────────────────────────────┘ │
+│                                         │
+│  ┌────────────────────────────────────┐ │
+│  │  DisputeGameFactory                │ │
+│  │  - Creates dispute games           │ │
+│  └────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────┐
+│          L2 Network                     │
+│  (Compose core contracts)               │
+└─────────────────────────────────────────┘
+```
+
+## Links
+
+- [Compose Network Documentation](https://docs.compose.network) (if available)
+- [Optimism Bedrock](https://github.com/ethereum-optimism/optimism)
+- [SP1 Documentation](https://docs.succinct.xyz/)
 
 ## License
 
-Repository is distributed under [GPL-3.0](LICENSE).
+This project is licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
+
+See the [LICENSE](LICENSE) file for the complete license text.
+
+### Third-Party Licenses
+
+This project incorporates several open-source libraries with permissive licenses (MIT/Apache-2.0) that are compatible with GPL-3.0-or-later. For detailed information about third-party dependencies and their licenses, see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+## Contributing
+
+We welcome contributions from the community! Whether you're fixing bugs, improving documentation, or proposing new features, your input is valued.
+
+### How to Contribute
+
+1. **Report Issues**: Found a bug or have a feature request? Please [open an issue](https://github.com/compose-network/compose-contracts/issues) with a clear description.
+
+2. **Submit Pull Requests**: 
+   - Fork the repository
+   - Create a feature branch (`git checkout -b feature/your-feature-name`)
+   - Make your changes with clear, descriptive commits
+   - Ensure all tests pass and add new tests for new features
+   - Submit a pull request with a comprehensive description of changes
+
+3. **Code Standards**:
+   - Follow existing code style and conventions
+   - Include inline documentation for complex logic
+   - Update relevant documentation (README, docs/) when necessary
+   - Ensure all contracts include proper SPDX license identifiers
+
+4. **Licensing**: By contributing to this project, you agree that your contributions will be licensed under the GPL-3.0-or-later license.
+
+For major changes, please open an issue first to discuss what you would like to change. This ensures your time is well spent and increases the likelihood of your contribution being merged.
+
