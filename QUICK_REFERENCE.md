@@ -63,4 +63,4 @@ Just remember: `cd L1-settlement` before running L1 commands.
 
 ---
 
-**Full details:** [RESTRUCTURING_SUMMARY.md](RESTRUCTURING_SUMMARY.md)
+**Full details:** See repository documentation
