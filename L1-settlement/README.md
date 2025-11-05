@@ -1,14 +1,20 @@
 # Compose Contracts
 
+⚠️ **WARNING: HEAVY DEVELOPMENT** ⚠️
+
+This project is currently in **heavy development phase** and has **NOT been audited**. The L1 settlement contracts are **NOT production-ready** and should not be used in mainnet environments or with real assets. Use at your own risk.
+
+---
+
 Smart contracts for the Compose Network L1 deployment. This repository contains the core contracts for managing L2 outputs and dispute resolution.
 
-## 📦 Contracts
+## Contracts
 
 - **ComposeL2OutputOracle**: ERC1967 upgradeable proxy contract for proposing and verifying L2 outputs using SP1 proofs
 - **ComposeDisputeGame**: Dispute game implementation for output validation
 - **DisputeGameFactory**: Optimism's factory contract for creating dispute games
 
-## 🚀 Quick Start
+## Quick Start
 
 Deploy all contracts to a network in 3 commands:
 
@@ -31,7 +37,7 @@ just deploy-network sepolia
 just deploy-multi sepolia hoodi
 ```
 
-## 📋 Prerequisites
+## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) - Ethereum development toolkit
 - [just](https://github.com/casey/just#installation) - Command runner
@@ -69,7 +75,7 @@ sudo apt-get install jq  # Debian/Ubuntu
 sudo yum install jq      # RHEL/CentOS
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### 1. Environment Variables (.env)
 
@@ -130,7 +136,7 @@ admin_address = "0x..."
 
 See `networks.toml.example` for complete examples.
 
-## 📝 Available Commands
+## Available Commands
 
 Run `just` to see all available commands:
 
@@ -171,7 +177,7 @@ just deploy-game <network> <addr>   # Deploy only ComposeDisputeGame
 just deploy-factory <network>       # Deploy only DisputeGameFactory
 ```
 
-## 📊 Deployment Flow
+## Deployment Flow
 
 The deployment process automatically deploys contracts in the correct order:
 
@@ -188,7 +194,7 @@ The deployment process automatically deploys contracts in the correct order:
 
 All addresses are automatically saved to `deployments.json`.
 
-## 📂 Deployment Tracking
+## Deployment Tracking
 
 Deployment addresses are automatically saved in `deployments.json`:
 
@@ -219,7 +225,7 @@ just show-deployments           # Pretty-printed view
 just get-deployment sepolia     # Get specific network (JSON)
 ```
 
-## 🔍 Contract Verification
+## Contract Verification
 
 Contracts are automatically verified on Etherscan during deployment if `ETHERSCAN_API_KEY` is set.
 
@@ -228,7 +234,7 @@ Manual verification:
 just verify-all sepolia
 ```
 
-## 🛠️ Development
+## Development
 
 ### Build Contracts
 ```bash
@@ -250,14 +256,14 @@ forge test
 just check-setup
 ```
 
-## 📚 Documentation
+## Documentation
 
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Detailed deployment walkthrough
 - [Quick Start](docs/QUICKSTART.md) - 5-minute setup guide
 - [Network Configuration](docs/NETWORK_CONFIG.md) - Network setup details
 - [Contract Parameters](docs/CONTRACT_PARAMS.md) - Parameter explanations
 
-## 🏗️ Repository Structure
+## Repository Structure
 
 ```
 compose-contracts/
@@ -286,7 +292,7 @@ compose-contracts/
 └── foundry.toml                  # Foundry configuration
 ```
 
-## 🔐 Security Notes
+## Security Notes
 
 - **Never commit `.env`** - Contains private keys
 - **Never commit `networks.toml`** - May contain sensitive data
@@ -295,7 +301,7 @@ compose-contracts/
 - Test on testnets before mainnet deployment
 - Always verify contract source code after deployment
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "Submodule not initialized"
 ```bash
@@ -326,11 +332,11 @@ The contracts are built with optimizations enabled in `foundry.toml`. If size is
 - Ensure you're using the latest Solidity version
 - Check that all submodules are properly initialized
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please follow the standard GitHub flow:
 1. Fork the repository
@@ -338,7 +344,7 @@ Contributions welcome! Please follow the standard GitHub flow:
 3. Make your changes
 4. Submit a pull request
 
-## 📞 Support
+## Support
 
 - [Documentation](docs/)
 - [GitHub Issues](https://github.com/compose-network/compose-contracts/issues)

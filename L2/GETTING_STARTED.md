@@ -9,7 +9,7 @@ This project includes two types of mailbox contracts:
 - **Mailbox**: For native rollups within the Compose network
 - **StagedMailbox**: For external rollups outside the Compose network (requires coordinator pre-population)
 
-Both are deployed by default. See [Cross-Domain Composability Protocol](../cross_domain_protocol.md) for details.
+Both are deployed by default. See the L2 README for more details on cross-domain composability.
 
 ## Prerequisites
 
