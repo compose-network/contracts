@@ -148,7 +148,7 @@ pnpm-debug.log*
 .env.local
 
 # Network configurations (may contain sensitive data)
-# networks.toml
+networks.toml
 
 # ─────────────────────────────────────────────────────────────────────────
 # 10. Miscellaneous
