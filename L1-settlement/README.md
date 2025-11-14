@@ -1,43 +1,51 @@
-# Compose Contracts
+# Compose L1 Settlement
 
-⚠️ **WARNING: HEAVY DEVELOPMENT** ⚠️
+L1 smart contracts for Compose's aggregated settlement infrastructure. Enables multiple OP Stack rollups (v3.x.x) to share settlement infrastructure with validity proofs and pooled liquidity.
 
-This project is currently in **heavy development phase** and has **NOT been audited**. The L1 settlement contracts are **NOT production-ready** and should not be used in mainnet environments or with real assets. Use at your own risk.
+Compose L1 provides **shared L1 settlement infrastructure** for multiple OP Stack rollups:
 
----
+- **Shared Infrastructure**: Deploy once, use for all rollups
+- **Validity Proofs**: SP1-powered aggregated proofs for superblocks  
+- **Pooled Liquidity**: Shared ETH lockbox for efficient capital usage
 
-Smart contracts for the Compose Network L1 deployment. This repository contains the core contracts for managing L2 outputs and dispute resolution.
+## Architecture
 
-## Contracts
+### Phase 1: Shared Infrastructure (Compose Network)
+Deploy cluster-wide components:
+- `SuperchainConfig` - Cluster governance and pause controls
+- `DisputeGameFactory` - Creates dispute games for superblocks
+- `ComposeDisputeGame` - Validity game that verifies SP1 proofs
+- `AnchorStateRegistry` - Tracks finalized superblock anchor states
+- `ETHLockbox` - Shared liquidity pool for withdrawals
+- `ProxyAdmin` - Proxy administration
 
-- **ComposeL2OutputOracle**: ERC1967 upgradeable proxy contract for proposing and verifying L2 outputs using SP1 proofs
-- **ComposeDisputeGame**: Dispute game implementation for output validation
-- **DisputeGameFactory**: Optimism's factory contract for creating dispute games
+### Phase 2: Rollup Migration (Per Rollup)
+Migrate existing OP Stack rollups to use shared infrastructure:
+- Upgrade `SystemConfig`, `OptimismPortal`, `L1CrossDomainMessenger`, `L1StandardBridge`, `L1ERC721Bridge`
+- Point to shared `AnchorStateRegistry` and `ETHLockbox`
+- Enable super root withdrawal proving
 
-## Quick Start
+## 🚀 Quick Start
 
-Deploy all contracts to a network in 3 commands:
+See [QUICKSTART.md](./QUICKSTART.md) for detailed setup.
 
 ```bash
-# 1. Setup submodules and dependencies
-just setup
+# 1. Setup
+just setup && just build
 
-# 2. Build contracts
-just build
-
-# 3. Configure (edit .env and networks.toml manually)
+# 2. Configure
 cp .env.example .env
 cp networks.toml.example networks.toml
-# Edit both files with your configuration
+# Edit both files
 
-# 4. Deploy to specific network
-just deploy-network sepolia
+# 3. Deploy shared infrastructure (Phase 1)
+just deploy-network hoodi-stage
 
-# OR deploy to multiple networks
-just deploy-multi sepolia hoodi
+# 4. Migrate a rollup (Phase 2)
+just migrate-rollup rollup-a-stage hoodi-stage
 ```
 
-## Prerequisites
+## 📋 Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) - Ethereum development toolkit
 - [just](https://github.com/casey/just#installation) - Command runner
@@ -75,224 +83,76 @@ sudo apt-get install jq  # Debian/Ubuntu
 sudo yum install jq      # RHEL/CentOS
 ```
 
-## Configuration
+## ⚙️ Configuration
 
-### 1. Environment Variables (.env)
+Two files control deployment:
 
-Copy `.env.example` and configure:
-
+**`.env`** (private keys, never commit):
 ```bash
-cp .env.example .env
+PRIVATE_KEY=0x...
+ETHERSCAN_API_KEY=...
 ```
 
-Required variables:
-```bash
-# Deployer private key (keep secure!)
-DEPLOYER_PRIVATE_KEY=0x...
-
-# Etherscan API key for contract verification
-ETHERSCAN_API_KEY=YOUR_ETHERSCAN_API_KEY
-
-# DisputeGameFactory address (set after deployment)
-HOODI_GAME_FACTORY_ADDRESS=
-```
-
-### 2. Network Configuration (networks.toml)
-
-Copy `networks.toml.example` and configure your target networks:
-
-```bash
-cp networks.toml.example networks.toml
-```
-
-Each network requires:
-- RPC URL and chain ID
-- Explorer URLs for verification
-- ComposeL2OutputOracle initialization parameters:
-  - `verifier_address` - SP1Verifier contract address
-  - `owner_address` - Owner with admin permissions
-  - `proposer_address` - Approved proposer address
-  - `aggregation_vkey` - SP1 aggregation verification key
-  - `starting_superblock_number` - Starting superblock (usually 0)
-- DisputeGameFactory parameters:
-  - `admin_address` - Admin address for the factory
-
-Example:
+**`networks.toml`** (network parameters):
 ```toml
-[networks.sepolia]
-name = "Ethereum Sepolia"
-rpc_url = "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY"
-chain_id = 11155111
-explorer_url = "https://sepolia.etherscan.io"
-explorer_api_url = "https://api-sepolia.etherscan.io/api"
-
-verifier_address = "0x..."
-owner_address = "0x..."
-proposer_address = "0x..."
-aggregation_vkey = "0x..."
-starting_superblock_number = 0
-admin_address = "0x..."
+[networks.hoodi-stage]
+rpc_url = "https://..."
+chain_id = 560048
+guardian = "0x..."
+sp1_verifier = "0x..."
+# ... more parameters
 ```
 
-See `networks.toml.example` for complete examples.
+See [docs/NETWORK_CONFIG.md](./docs/NETWORK_CONFIG.md) for complete configuration guide.
 
-## Available Commands
+## 📝 Common Commands
 
-Run `just` to see all available commands:
-
-### Setup & Build
 ```bash
-just setup                # Initialize submodules and dependencies
-just build                # Build all contracts
-just clean                # Clean build artifacts
-just check-setup          # Validate environment setup
+# Setup
+just setup                          # Initialize project
+just build                          # Build contracts
+
+# Phase 1: Shared Infrastructure
+just deploy-network hoodi-stage     # Deploy shared infra
+just show-deployments               # View deployed contracts
+
+# Phase 2: Rollup Migration  
+just migrate-rollup rollup-a hoodi  # Migrate a rollup
+just migrate-fork rollup-a hoodi 123 # Test on fork
+just show-migrations                # View migrations
 ```
 
-### Network Management
-```bash
-just list-networks        # List available networks
-just test-network <name>  # Test network connection
-```
+Run `just` to see all available commands.
 
-### Deployment
-```bash
-# Multi-chain deployment (recommended)
-just deploy-network <network>       # Deploy to specific network
-just deploy-multi <networks...>     # Deploy to multiple networks
-
-# View deployments
-just show-deployments               # Show all deployed addresses
-just get-deployment <network>       # Get addresses for specific network
-```
-
-### Verification
-```bash
-just verify-all <network>           # Verify all contracts on Etherscan
-```
-
-### Advanced (Individual Contract Deployment)
-```bash
-just deploy-oracle <network>        # Deploy only ComposeL2OutputOracle
-just deploy-game <network> <addr>   # Deploy only ComposeDisputeGame
-just deploy-factory <network>       # Deploy only DisputeGameFactory
-```
-
-## Deployment Flow
-
-The deployment process automatically deploys contracts in the correct order:
+## 📁 Repository Structure
 
 ```
-1. ComposeL2OutputOracle (Implementation + ERC1967 Proxy)
-   └── Initializes with network-specific parameters
-   
-2. ComposeDisputeGame (Implementation)
-   └── Requires ComposeL2OutputOracle proxy address
-   
-3. DisputeGameFactory (ProxyAdmin + Implementation + Bedrock Proxy)
-   └── Initializes with admin address
-```
-
-All addresses are automatically saved to `deployments.json`.
-
-## Deployment Tracking
-
-Deployment addresses are automatically saved in `deployments.json`:
-
-```json
-{
-  "sepolia": {
-    "chain_id": "11155111",
-    "ComposeL2OutputOracle": {
-      "proxy": "0x...",
-      "implementation": "0x..."
-    },
-    "ComposeDisputeGame": {
-      "implementation": "0x..."
-    },
-    "DisputeGameFactory": {
-      "proxy": "0x...",
-      "implementation": "0x...",
-      "proxyAdmin": "0x..."
-    },
-    "deployed_at": "2025-10-17 01:00:00 UTC"
-  }
-}
-```
-
-View deployments:
-```bash
-just show-deployments           # Pretty-printed view
-just get-deployment sepolia     # Get specific network (JSON)
-```
-
-## Contract Verification
-
-Contracts are automatically verified on Etherscan during deployment if `ETHERSCAN_API_KEY` is set.
-
-Manual verification:
-```bash
-just verify-all sepolia
-```
-
-## Development
-
-### Build Contracts
-```bash
-just build
-```
-
-### Clean Artifacts
-```bash
-just clean
-```
-
-### Run Tests
-```bash
-forge test
-```
-
-### Check Setup
-```bash
-just check-setup
-```
-
-## Documentation
-
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Detailed deployment walkthrough
-- [Quick Start](docs/QUICKSTART.md) - 5-minute setup guide
-- [Network Configuration](docs/NETWORK_CONFIG.md) - Network setup details
-- [Contract Parameters](docs/CONTRACT_PARAMS.md) - Parameter explanations
-
-## Repository Structure
-
-```
-compose-contracts/
-├── src/                          # Contract source files
-│   ├── ComposeL2OutputOracle.sol
+L1-settlement/
+├── src/                    # Compose contracts
 │   ├── ComposeDisputeGame.sol
-│   └── interfaces/
-├── script/                       # Deployment scripts
-│   ├── DeployComposeL2OutputOracle.s.sol
-│   ├── DeployComposeDisputeGame.s.sol
-│   └── DeployDisputeGameFactory.s.sol
-├── scripts/                      # Bash helper scripts
-│   ├── deploy.sh                 # Main deployment orchestrator
-│   ├── parse-network.sh          # Parse networks.toml
-│   └── save-deployment.sh        # Save addresses to JSON
-├── test/                         # Contract tests
-├── docs/                         # Documentation
-├── lib/                          # Dependencies (gitmodules)
-│   └── optimism/                 # Optimism contracts (op-deployer/v0.3.3)
-├── justfile                      # Command definitions
-├── networks.toml                 # Network configurations (gitignored)
-├── networks.toml.example         # Example network config
-├── deployments.json              # Deployment addresses (gitignored)
-├── .env                          # Private config (gitignored)
-├── .env.example                  # Environment template
-└── foundry.toml                  # Foundry configuration
+│   ├── ComposeAnchorStateRegistry.sol
+│   └── ComposeETHLockbox.sol
+├── script/
+│   ├── config/           # Network & rollup configs
+│   ├── deploy/           # Phase 1 deployment
+│   └── migrate/          # Phase 2 migration
+├── scripts/              # Bash automation
+├── deployments/          # Deployment outputs
+│   ├── compose/          # Shared infra
+│   └── rollups/          # Rollup migrations
+├── docs/                 # Documentation
+├── networks.toml         # Network configs (gitignored)
+└── .env                  # Private keys (gitignored)
 ```
 
-## Security Notes
+## 📚 Documentation
+
+- **[QUICKSTART.md](./QUICKSTART.md)** - 5-minute getting started guide
+- **[docs/NETWORK_CONFIG.md](./docs/NETWORK_CONFIG.md)** - Network configuration guide
+- **[docs/SHARED_INFRA.md](./docs/SHARED_INFRA.md)** - Shared infrastructure deployment
+- **[docs/ROLLUP_MIGRATION.md](./docs/ROLLUP_MIGRATION.md)** - Rollup migration guide
+
+## 🔐 Security Notes
 
 - **Never commit `.env`** - Contains private keys
 - **Never commit `networks.toml`** - May contain sensitive data
@@ -301,56 +161,23 @@ compose-contracts/
 - Test on testnets before mainnet deployment
 - Always verify contract source code after deployment
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
-### "Submodule not initialized"
-```bash
-just setup
-```
+| Issue | Solution |
+|-------|----------|
+| Submodule not initialized | `just setup` |
+| Build failed | `just clean && just build` |
+| Network connection failed | Check RPC URL in `networks.toml` |
+| Verification failed | Check `ETHERSCAN_API_KEY` in `.env` |
 
-### "Build failed"
-```bash
-just clean
-just build
-```
-
-### "Network connection failed"
-```bash
-# Test your network configuration
-just test-network sepolia
-
-# Check RPC URL in networks.toml
-```
-
-### "Verification failed"
-- Ensure `ETHERSCAN_API_KEY` is set in `.env`
-- Wait a few minutes and retry: `just verify-all <network>`
-- Check explorer API URL in `networks.toml`
-
-### "Contract size exceeded"
-The contracts are built with optimizations enabled in `foundry.toml`. If size issues occur:
-- Ensure you're using the latest Solidity version
-- Check that all submodules are properly initialized
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions welcome! Please follow the standard GitHub flow:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## Support
-
-- [Documentation](docs/)
-- [GitHub Issues](https://github.com/compose-network/compose-contracts/issues)
+See documentation for detailed troubleshooting.
 
 ## 🔗 References
 
-- [Optimism Bedrock](https://github.com/ethereum-optimism/optimism)
-- [SP1 Contracts](https://github.com/succinctlabs/sp1-contracts)
-- [Foundry Book](https://book.getfoundry.sh/)
+- [OP Stack](https://github.com/ethereum-optimism/optimism) - Base rollup infrastructure
+- [SP1](https://docs.succinct.xyz/) - Zero-knowledge proof system
+- [Foundry](https://book.getfoundry.sh/) - Ethereum development toolkit
+
+---
+
+**License:** MIT | **Contributing:** PRs welcome | **Support:** Open an issue

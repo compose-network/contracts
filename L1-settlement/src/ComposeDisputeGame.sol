@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.15;
 
-import {IComposeL2OutputOracle} from "./interfaces/IComposeL2OutputOracle.sol";
 import {Clone} from "@optimism/lib/solady/src/utils/Clone.sol";
-import {ISemver} from "interfaces/universal/ISemver.sol";
-import {IDisputeGame} from "interfaces/dispute/IDisputeGame.sol";
-import {Claim, GameStatus, GameType, Hash, Timestamp} from "@optimism/src/dispute/lib/Types.sol";
-import {GameNotInProgress} from "@optimism/src/dispute/lib/Errors.sol";
+import {ISemver} from "@optimism/interfaces/universal/ISemver.sol";
+import {GameNotInProgress, GameNotFinalized, GamePaused} from "@optimism/src/dispute/lib/Errors.sol";
+import {Hashing} from "@optimism/src/libraries/Hashing.sol";
+import {Types} from "@optimism/src/libraries/Types.sol";
+import { Timestamp, GameStatus, GameType, Claim, Hash } from "@optimism/src/dispute/lib/Types.sol";
+import {ISP1Verifier} from "@sp1-contracts/src/ISP1Verifier.sol";
+import {IComposeDisputeGame, IDisputeGame} from "./interfaces/ICompose.sol";
+import {IComposeAnchorStateRegistry} from "./interfaces/IComposeAnchorStateRegistry.sol";
 
-error AlreadyInitialized();
-
-contract ComposeDisputeGame is ISemver, Clone, IDisputeGame {
+contract ComposeDisputeGame is ISemver, Clone, IComposeDisputeGame {
     uint32 public constant COMPOSE_GAME_TYPE = 5555;
 
-    address internal immutable L2_OUTPUT_ORACLE;
+    bytes32 public immutable AGGREGATION_VKEY;
+
+    ISP1Verifier public immutable PROOF_VERIFIER;
+    IComposeAnchorStateRegistry public immutable ANCHOR_STATE_REGISTRY;
+    address public immutable AUTHORIZED_PROPOSER;
 
     /// @notice The timestamp of the game's global creation.
     Timestamp public createdAt;
@@ -27,23 +32,120 @@ contract ComposeDisputeGame is ISemver, Clone, IDisputeGame {
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
 
-    /// @custom:semver v0.0.1
-    string public constant version = "v0.0.1";
+    /// @notice Tracks the last accepted superblock number to enforce monotonically increasing inputs.
+    uint256 public lastSuperblockNumber;
 
-    constructor(address _l2OutputOracle) {
-        L2_OUTPUT_ORACLE = _l2OutputOracle;
+    /// @notice Tracks the latest output for each rollup config hash.
+    mapping(bytes32 => RollupOutput) public latestOutputsByConfig;
+
+    /// @custom:semver 1.0.0
+    string public constant version = "v1.0.0";
+
+    constructor(
+        address _proofVerifier,
+        bytes32 _aggregationVkey,
+        IComposeAnchorStateRegistry _asr,
+        address _authorizedProposer
+    ) {
+        if (_proofVerifier == address(0)) revert InvalidVerifier();
+        if (address(_asr) == address(0)) revert InvalidASR();
+        PROOF_VERIFIER = ISP1Verifier(_proofVerifier);
+        AGGREGATION_VKEY = _aggregationVkey;
+        ANCHOR_STATE_REGISTRY = _asr;
+        AUTHORIZED_PROPOSER = _authorizedProposer;
     }
 
     function initialize() external payable {
         if (Timestamp.unwrap(createdAt) != 0) revert AlreadyInitialized();
 
+        if (gameCreator() != AUTHORIZED_PROPOSER) revert UnauthorizedProposer();
+
         createdAt = Timestamp.wrap(uint64(block.timestamp));
         status = GameStatus.IN_PROGRESS;
-        wasRespectedGameTypeWhenCreated = true;
+        wasRespectedGameTypeWhenCreated = (GameType.unwrap(
+            ANCHOR_STATE_REGISTRY.respectedGameType()
+        ) == GameType.unwrap(gameType()));
 
-        IComposeL2OutputOracle oracle = IComposeL2OutputOracle(L2_OUTPUT_ORACLE);
+        (
+            SuperblockAggregationOutputs memory aggOutputs,
+            Types.SuperRootProof memory superRootProof,
+            bytes memory proof
+        ) = decodeExtraData();
 
-        oracle.proposeL2Output(rootClaim().raw(), l1Head().raw(), extraData());
+        if (proof.length == 0) revert MissingAggregationProof();
+        if (superRootProof.timestamp > uint64(block.timestamp))
+            revert FutureTimestampProposed(
+                superRootProof.timestamp,
+                uint64(block.timestamp)
+            );
+
+        bytes32 claimedRoot = rootClaim().raw();
+        bytes32 expectedRoot = Hashing.hashSuperRootProof(superRootProof);
+        if (claimedRoot != expectedRoot)
+            revert InvalidRootClaim(expectedRoot, claimedRoot);
+
+        if (aggOutputs.superblockNumber <= lastSuperblockNumber) {
+            revert InvalidSuperblockOrdering(
+                lastSuperblockNumber,
+                aggOutputs.superblockNumber
+            );
+        }
+
+        if (superRootProof.outputRoots.length != aggOutputs.bootInfo.length) {
+            revert OutputLengthMismatch(
+                aggOutputs.bootInfo.length,
+                superRootProof.outputRoots.length
+            );
+        }
+
+        PROOF_VERIFIER.verifyProof(
+            AGGREGATION_VKEY,
+            bytes32ToBytes(sha256(abi.encode(aggOutputs))),
+            proof
+        );
+
+        lastSuperblockNumber = aggOutputs.superblockNumber;
+
+        uint256 rootsLen = superRootProof.outputRoots.length;
+        for (uint256 i; i < rootsLen; i++) {
+            Types.OutputRootWithChainId
+                memory outputRootWithChainId = superRootProof.outputRoots[i];
+            BootInfoStruct memory bootInfo = aggOutputs.bootInfo[
+                i
+            ];
+
+            if (outputRootWithChainId.root != bootInfo.l2PostRoot) {
+                revert OutputRootMismatch(
+                    outputRootWithChainId.chainId,
+                    bootInfo.l2PostRoot,
+                    outputRootWithChainId.root
+                );
+            }
+
+            latestOutputsByConfig[bootInfo.rollupConfigHash] = RollupOutput({
+                l1Head: bootInfo.l1Head,
+                outputRoot: outputRootWithChainId.root,
+                l2BlockNumber: bootInfo.l2BlockNumber
+            });
+
+            emit L2OutputProposed(
+                aggOutputs.superblockNumber,
+                outputRootWithChainId.chainId,
+                bootInfo.l2BlockNumber,
+                bootInfo.rollupConfigHash,
+                outputRootWithChainId.root,
+                bootInfo.l1Head,
+                block.timestamp
+            );
+        }
+
+        emit SuperblockProposed(
+            aggOutputs.superblockNumber,
+            aggOutputs.parentSuperblockBatchHash,
+            superRootProof.timestamp,
+            block.number,
+            expectedRoot
+        );
 
         this.resolve();
     }
@@ -58,6 +160,29 @@ contract ComposeDisputeGame is ISemver, Clone, IDisputeGame {
         status_ = GameStatus.DEFENDER_WINS;
 
         emit Resolved(status = status_);
+    }
+
+    /// @notice Attempts to update the AnchorStateRegistry with this game as the new anchor.
+    ///         Safe to call multiple times; the ASR enforces validity and monotonicity.
+    function closeGame() external {
+        if (ANCHOR_STATE_REGISTRY.paused()) {
+            revert GamePaused();
+        }
+
+        // Game must be finalized according to the AnchorStateRegistry.
+        bool finalized = ANCHOR_STATE_REGISTRY.isGameFinalized(
+            IDisputeGame(address(this))
+        );
+        if (!finalized) {
+            revert GameNotFinalized();
+        }
+
+        // Best-effort; ignore failures (e.g., finality delay not yet elapsed).
+        try
+            ANCHOR_STATE_REGISTRY.setAnchorState(IDisputeGame(address(this)))
+        {} catch {}
+
+        emit GameClosed();
     }
 
     /// @return gameType_ The type of proof system being used.
@@ -109,28 +234,63 @@ contract ComposeDisputeGame is ISemver, Clone, IDisputeGame {
     }
 
     function gameData()
-    external
-    pure
-    returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_)
+        external
+        pure
+        returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_)
     {
         gameType_ = gameType();
         rootClaim_ = rootClaim();
         extraData_ = extraData();
     }
 
+    /// @notice ASR uses this to enforce that new anchors are strictly newer than the current anchor.
     function l2SequenceNumber()
-    external
-    pure
-    returns (uint256 l2SequenceNumber_)
+        external
+        pure
+        returns (uint256 l2SequenceNumber_)
     {
-        return 0;
+        (
+            SuperblockAggregationOutputs memory aggOutputs,
+            ,
+
+        ) = decodeExtraData();
+        l2SequenceNumber_ = aggOutputs.superblockNumber;
     }
 
-    function bytes32ToBytes(bytes32 input) public pure returns (bytes memory) {
+    /// @notice Returns the AnchorStateRegistry address this game is registered with.
+    function anchorStateRegistry()
+        external
+        view
+        returns (IComposeAnchorStateRegistry registry_)
+    {
+        registry_ = ANCHOR_STATE_REGISTRY;
+    }
+
+    function bytes32ToBytes(bytes32 input) private pure returns (bytes memory) {
         bytes memory b = new bytes(32);
         assembly {
             mstore(add(b, 32), input)
         }
         return b;
+    }
+
+    function decodeExtraData()
+        private
+        pure
+        returns (
+            SuperblockAggregationOutputs memory aggOutputs,
+            Types.SuperRootProof memory superRootProof,
+            bytes memory proof
+        )
+    {
+        return
+            abi.decode(
+                extraData(),
+                (
+                    SuperblockAggregationOutputs,
+                    Types.SuperRootProof,
+                    bytes
+                )
+            );
     }
 }

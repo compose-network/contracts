@@ -18,7 +18,7 @@ This repository contains the smart contracts for the Compose Network, organized 
 ```
 compose-contracts/
 ├── L1-settlement/          # L1 settlement layer contracts
-│   ├── src/               # ComposeL2OutputOracle, ComposeDisputeGame
+│   ├── src/               # ComposeDisputeGame, ComposeAnchorStateRegistry, ComposeETHLockbox
 │   ├── script/            # Deployment scripts
 │   ├── test/              # Contract tests
 │   ├── justfile           # Deployment commands
@@ -37,9 +37,9 @@ compose-contracts/
 ### L1-settlement
 
 The L1 settlement layer contracts handle:
-- **ComposeL2OutputOracle** - Manages L2 output proposals with SP1 proof verification
 - **ComposeDisputeGame** - Handles dispute resolution for L2 outputs  
-- **DisputeGameFactory** - Factory for creating dispute game instances
+- **ComposeAnchorStateRegistry** - Tracks finalized superblock anchor states 
+- **ComposeETHLockbox** - Manages ETH liquidity locking and unlocking for authorized OptimismPortals, enabling unified ETH liquidity management across chains in the superchain cluster. Modified to use SuperchainConfig directly instead of SystemConfig for simpler cluster-wide governance.  
 
 **📚 Full documentation:** [L1-settlement/README.md](L1-settlement/README.md)
 
@@ -156,7 +156,9 @@ just deploy-network rollup-a
 - [Optimism Bedrock](https://github.com/ethereum-optimism/optimism)
 - [SP1 Documentation](https://docs.succinct.xyz/)
 
-## License
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- [just](https://github.com/casey/just#installation)
+- [jq](https://stedolan.github.io/jq/)
 
 This project is licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
 
