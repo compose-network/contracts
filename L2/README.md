@@ -1,8 +1,14 @@
 # L2 Rollup Contracts
 
+⚠️ **WARNING: HEAVY DEVELOPMENT** ⚠️
+
+This project is currently in **heavy development phase** and has **NOT been audited**. The L2 execution contracts are **NOT production-ready** and should not be used in mainnet environments or with real assets. Use at your own risk.
+
+---
+
 Cross-rollup messaging, bridging, and DEX contracts for L2 execution layers.
 
-## 📋 Overview
+## Overview
 
 This project contains L2 contracts organized into two main modules:
 
@@ -19,7 +25,7 @@ This project contains L2 contracts organized into two main modules:
 - **WETH9** - Wrapped Ether (18 decimals)
 - **USDC_SSV_WETH_Swapper** - Simple 3-token swapper with 0.3% fee
 
-## 🔄 Mailbox vs StagedMailbox
+## Mailbox vs StagedMailbox
 
 The L2 contracts include two types of mailbox contracts:
 
@@ -27,7 +33,7 @@ The L2 contracts include two types of mailbox contracts:
 
 - **StagedMailbox**: Modified mailbox for **external rollups** outside the Compose network. All messages are pre-populated by the Wrapped Sequencer (WS) before transaction execution, enabling atomic cross-domain composability. See the Cross-Domain Composability Protocol (CDCP) for details.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Initial Setup
 
@@ -76,7 +82,7 @@ just fund-dex-swapper rollup-b
 just deploy-dex-all rollup-b
 ```
 
-## 📖 Configuration
+## Configuration
 
 ### Environment Variables (`.env`)
 
@@ -108,7 +114,7 @@ rpc_url = "http://..."
 # ... same fields
 ```
 
-## 🔧 Available Commands
+## Available Commands
 
 ### Setup & Build
 ```bash
@@ -182,7 +188,7 @@ just get-bridge <network>          # Get Bridge address
 just get-token <network>           # Get Token address
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 L2/
@@ -238,7 +244,7 @@ L2/
 └── justfile                           # Command runner
 ```
 
-## 🎯 Deployment Workflows
+## Deployment Workflows
 
 ### Core Contracts Deployment
 
@@ -295,7 +301,7 @@ L2/
    just verify-swapper rollup-b <swapper-addr> <weth> <usdc> <ssv>
    ```
 
-## 💱 DEX Features
+## DEX Features
 
 ### Token Specifications
 - **SSV**: ERC20 token with 18 decimals, mintable/burnable
@@ -320,7 +326,7 @@ just check-swap-price rollup-b 0 1 1000000000000000000
 just check-swap-price rollup-b 1 2 1000000000000000000000
 ```
 
-## 📊 Deployment Tracking
+## Deployment Tracking
 
 The `deployments.json` file tracks both core and DEX deployments:
 
@@ -353,7 +359,7 @@ The `deployments.json` file tracks both core and DEX deployments:
 }
 ```
 
-## 🔐 Security Notes
+## Security Notes
 
 - Never commit `.env` file (contains private keys)
 - `networks.toml` and `deployments.json` are gitignored
@@ -361,7 +367,7 @@ The `deployments.json` file tracks both core and DEX deployments:
 - Always verify deployed contract addresses
 - DEX tokens are mintable - only for testing/demo purposes
 
-## 📝 Technical Notes
+## Technical Notes
 
 ### Compilation
 - **Unified Version**: All contracts use Solidity 0.8.30

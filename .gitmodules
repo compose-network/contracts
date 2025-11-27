@@ -20,3 +20,9 @@
 [submodule "L1-settlement/lib/solady"]
 	path = L1-settlement/lib/solady
 	url = https://github.com/Vectorized/solady
+[submodule "L2/lib/forge-std"]
+	path = L2/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "L2/lib/openzeppelin-contracts"]
+	path = L2/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

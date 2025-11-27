@@ -48,28 +48,6 @@ contract ComposeDisputeGameTest is ComposeCommonTest {
         assertEq(gameImpl, address(composeDisputeGameImpl), "Game not registered in factory");
     }
 
-    // TODO: Fix game creation test - requires proper initialization setup
-    // function test_factory_canCreateGame() public {
-    //     // Create mock game data
-    //     bytes32 rootClaim = bytes32(uint256(1));
-    //     bytes memory extraData = "";
-    //     
-    //     // Get bond amount
-    //     uint256 bond = composeDisputeGameFactory.initBonds(GameType.wrap(5555));
-    //     
-    //     // Create game as authorized proposer
-    //     vm.deal(authorizedProposer, bond);
-    //     vm.prank(authorizedProposer);
-    //     
-    //     address game = address(composeDisputeGameFactory.create{value: bond}(
-    //         GameType.wrap(5555),
-    //         Claim.wrap(rootClaim),
-    //         extraData
-    //     ));
-    //     
-    //     assertTrue(game != address(0), "Game not created");
-    // }
-
     // ============ Game Type Tests ============
 
     function test_gameType_isCorrect() public view {

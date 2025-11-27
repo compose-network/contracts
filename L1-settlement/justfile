@@ -117,56 +117,23 @@ get-deployment NETWORK:
 # Migration Commands (Phase 2)
 # ============================================================================
 
-# Upgrade Portal to OptimismPortalInterop: Dry-run
-upgrade-to-portal-interop-dry ROLLUP:
+# Migrate a rollup to Compose (dry-run with detailed output)
+migrate-rollup-dry ROLLUP COMPOSE_NETWORK:
     #!/usr/bin/env bash
     set -euo pipefail
-    ./scripts/upgrade-to-portal-interop.sh {{ROLLUP}} dry-run
+    ./scripts/migrate-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}} dry-run
 
-# Upgrade Portal to OptimismPortalInterop: LIVE - broadcasts transactions
-upgrade-to-portal-interop ROLLUP:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "WARNING: This will execute LIVE transactions on-chain!"
-    echo "This will upgrade your portal from OptimismPortal2 to OptimismPortalInterop."
-    echo "Press Ctrl+C to cancel, or Enter to continue..."
-    read
-    ./scripts/upgrade-to-portal-interop.sh {{ROLLUP}} live
-
-# V3 Rollup Migration (V3 → V4 + Compose): Dry-run with detailed output
-migrate-v3-rollup-dry ROLLUP COMPOSE_NETWORK:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    ./scripts/migrate-v3-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}} dry-run
-
-# V3 Rollup Migration (V3 → V4 + Compose): LIVE - broadcasts transactions
-migrate-v3-rollup ROLLUP COMPOSE_NETWORK:
+# Migrate a rollup to Compose (LIVE - broadcasts transactions)
+migrate-rollup ROLLUP COMPOSE_NETWORK:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "WARNING: This will execute LIVE transactions on-chain!"
-    echo "This will perform a FULL migration including contract upgrades."
     echo "Press Ctrl+C to cancel, or Enter to continue..."
     read
-    ./scripts/migrate-v3-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}}
+    ./scripts/migrate-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}}
 
-# V4 Rollup Migration (V4 → Compose): Dry-run with detailed output
-migrate-v4-rollup-dry ROLLUP COMPOSE_NETWORK:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    ./scripts/migrate-v4-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}} dry-run
-
-# V4 Rollup Migration (V4 → Compose): LIVE - broadcasts transactions
-migrate-v4-rollup ROLLUP COMPOSE_NETWORK:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "WARNING: This will execute LIVE transactions on-chain!"
-    echo "This will migrate an existing V4/V5 rollup to Compose."
-    echo "Press Ctrl+C to cancel, or Enter to continue..."
-    read
-    ./scripts/migrate-v4-rollup.sh {{ROLLUP}} {{COMPOSE_NETWORK}}
-
-# Test V3 migration on a forked network at specific block
-migrate-v3-fork ROLLUP COMPOSE_NETWORK BLOCK:
+# Test migration on a forked network at specific block
+migrate-fork ROLLUP COMPOSE_NETWORK BLOCK:
     #!/usr/bin/env bash
     set -euo pipefail
     source scripts/parse-network.sh {{COMPOSE_NETWORK}}
@@ -177,17 +144,14 @@ migrate-v3-fork ROLLUP COMPOSE_NETWORK BLOCK:
     # Read rollup ProxyAdmin owner from config (for --sender impersonation)
     ROLLUP_OWNER=$(jq -r '.proxyAdmin.owner' "$ROLLUP_CONFIG")
     
-    echo "========================================="
-    echo "Testing V3 Migration on Fork"
-    echo "========================================="
+    echo "Testing migration on fork at block {{BLOCK}}..."
     echo "  Rollup: {{ROLLUP}}"
     echo "  Compose Network: $NETWORK_NAME"
-    echo "  Fork Block: {{BLOCK}}"
     echo "  RPC URL: $NETWORK_RPC_URL"
     echo "  Impersonating: $ROLLUP_OWNER (rollup ProxyAdmin owner)"
     echo ""
     
-    if forge script script/migrate/MigrateRollupV3.s.sol:MigrateRollupV3 \
+    if forge script script/migrate/MigrateRollup.s.sol:MigrateRollup \
         --sig 'run(string,string,bool)' \
         --fork-url "$NETWORK_RPC_URL" \
         --fork-block-number {{BLOCK}} \
@@ -197,7 +161,7 @@ migrate-v3-fork ROLLUP COMPOSE_NETWORK BLOCK:
         {{ROLLUP}} {{COMPOSE_NETWORK}} false; then
         
         echo ""
-        echo "✓ Fork migration successful! Saving migration data..."
+        echo "Fork migration successful! Saving migration data..."
         
         # Extract proxy addresses from rollup config
         SYSTEM_CONFIG_PROXY=$(jq -r '.l1SystemConfigAddress' "$ROLLUP_CONFIG")
@@ -221,63 +185,9 @@ migrate-v3-fork ROLLUP COMPOSE_NETWORK BLOCK:
             "$L1_ERC721_BRIDGE_PROXY" \
             "$OLD_OPTIMISM_PORTAL_IMPL"
         
-        echo "✓ Fork migration data saved to deployments/rollups/fork/{{ROLLUP}}.json"
+        echo "Fork migration data saved to deployments/rollups/fork/{{ROLLUP}}.json"
     else
-        echo "✗ Fork migration failed!"
-        exit 1
-    fi
-
-# Test V4 migration on a forked network at specific block
-migrate-v4-fork ROLLUP COMPOSE_NETWORK BLOCK:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source scripts/parse-network.sh {{COMPOSE_NETWORK}}
-    
-    ROLLUP_CONFIG="script/config/rollups/{{ROLLUP}}.json"
-    L2_CHAIN_ID=$(jq -r '.l2ChainId' "$ROLLUP_CONFIG")
-    
-    # Read rollup ProxyAdmin owner from config (for --sender impersonation)
-    ROLLUP_OWNER=$(jq -r '.proxyAdmin.owner' "$ROLLUP_CONFIG")
-    
-    # Read Compose ProxyAdmin owner from deployment config
-    COMPOSE_CONFIG="script/config/compose/{{COMPOSE_NETWORK}}.json"
-    COMPOSE_OWNER=$(jq -r '.proxyAdminOwner' "$COMPOSE_CONFIG")
-    
-    echo "========================================="
-    echo "Testing V4 Migration on Fork"
-    echo "========================================="
-    echo "  Rollup: {{ROLLUP}}"
-    echo "  Compose Network: $NETWORK_NAME"
-    echo "  Fork Block: {{BLOCK}}"
-    echo "  RPC URL: $NETWORK_RPC_URL"
-    echo "  Impersonating Rollup Owner: $ROLLUP_OWNER"
-    echo "  Impersonating Compose Owner: $COMPOSE_OWNER"
-    echo ""
-    
-    # Run migration with unlocked accounts for both rollup and compose owners
-    # Note: Forge will need to impersonate both during different steps
-    if forge script script/migrate/MigrateRollupV4.s.sol:MigrateRollupV4 \
-        --sig 'run(string,string,bool)' \
-        --fork-url "$NETWORK_RPC_URL" \
-        --fork-block-number {{BLOCK}} \
-        --sender "$ROLLUP_OWNER" \
-        --unlocked \
-        -vvvv \
-        {{ROLLUP}} {{COMPOSE_NETWORK}} false; then
-        
-        echo ""
-        echo "✓ V4 Fork migration successful!"
-        echo ""
-        echo "Migration tested with:"
-        echo "  - Portal upgrade (if needed)"
-        echo "  - ETH_LOCKBOX feature enabled"
-        echo "  - Portal authorized in lockbox"
-        echo "  - Migration to Super Roots"
-        echo ""
-        echo "Note: V4 migrations don't save separate migration files"
-        echo "      (no contract deployments, only state updates)"
-    else
-        echo "✗ V4 Fork migration failed!"
+        echo "Fork migration failed!"
         exit 1
     fi
 
