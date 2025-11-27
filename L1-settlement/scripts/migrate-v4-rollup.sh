@@ -43,15 +43,15 @@ fi
 if [ "$DRY_RUN" != "dry-run" ]; then
     if [ -z "${MIGRATION_PROXY_ADMIN_OWNER_KEY:-}" ]; then
         echo -e "${RED}Error: MIGRATION_PROXY_ADMIN_OWNER_KEY not set in .env${NC}"
-        echo "This private key is required to execute the migration (Steps 2-4, 8-9)."
+        echo "This private key is required to execute the V4 migration (Steps 1, 3)."
         echo "Add it to your .env file with the Rollup ProxyAdmin owner private key."
         exit 1
     fi
     
-    # Warn if COMPOSE_PROXY_ADMIN_OWNER_KEY is not set (needed for Step 6)
+    # Warn if COMPOSE_PROXY_ADMIN_OWNER_KEY is not set (needed for Step 2)
     if [ -z "${COMPOSE_PROXY_ADMIN_OWNER_KEY:-}" ]; then
         echo -e "${YELLOW}Warning: COMPOSE_PROXY_ADMIN_OWNER_KEY not set in .env${NC}"
-        echo "This key is needed for Step 6 (authorize portal in lockbox)."
+        echo "This key is needed for Step 2 (authorize portal in lockbox)."
         echo "If not set, MIGRATION_PROXY_ADMIN_OWNER_KEY will be used as fallback."
         echo "Set COMPOSE_PROXY_ADMIN_OWNER_KEY if the Compose ProxyAdmin has a different owner."
     fi
@@ -63,7 +63,7 @@ if [ "$DRY_RUN" = "dry-run" ]; then
     IS_DRY_RUN="true"
 fi
 
-echo -e "${GREEN}Migration configuration:${NC}"
+echo -e "${GREEN}V4 Migration configuration:${NC}"
 echo "  Rollup: $ROLLUP (from $ROLLUP_CONFIG)"
 echo "  Compose Network: $COMPOSE_NETWORK (from $COMPOSE_CONFIG)"
 echo "  Mode: $([ "$IS_DRY_RUN" = "true" ] && echo "DRY RUN (simulation only)" || echo "LIVE (will broadcast transactions)")"
@@ -77,6 +77,7 @@ fi
 source scripts/parse-network.sh "$COMPOSE_NETWORK"
 
 CHAIN_ID=$(jq -r '.l2ChainId' "$ROLLUP_CONFIG")
+PORTAL_ADDRESS=$(jq -r '.optimismPortal.proxy' "$ROLLUP_CONFIG")
 
 echo "Rollup:       $ROLLUP"
 echo "Compose Net:  $NETWORK_NAME"
@@ -84,16 +85,46 @@ echo "L2 Chain ID:  $CHAIN_ID"
 echo "RPC URL:      $NETWORK_RPC_URL"
 echo ""
 
+# Detect portal version to ensure we're using the correct migration script
+echo "Detecting OptimismPortal version..."
+PORTAL_VERSION=$(cast call "$PORTAL_ADDRESS" "version()(string)" --rpc-url "$NETWORK_RPC_URL" 2>&1)
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: Could not detect portal version${NC}"
+    echo "Make sure the portal address is correct and the RPC is accessible."
+    echo "Portal address: $PORTAL_ADDRESS"
+    exit 1
+fi
+
+echo "  Portal version: $PORTAL_VERSION"
+
+# Strip quotes and extract major version (e.g., "5.0.0" -> 5)
+PORTAL_VERSION_CLEAN=$(echo "$PORTAL_VERSION" | tr -d '"')
+MAJOR_VERSION=$(echo "$PORTAL_VERSION_CLEAN" | cut -d'.' -f1)
+
+# V4 migration requires version 4.x.x or 5.x.x
+if [ "$MAJOR_VERSION" -lt 4 ]; then
+    echo -e "${RED}Error: This rollup is on V3 (version $PORTAL_VERSION)${NC}"
+    echo ""
+    echo "Use the V3 migration script instead (performs full upgrade to V4 + Compose):"
+    echo "  just migrate-v3-rollup-dry $ROLLUP $COMPOSE_NETWORK  # for dry-run"
+    echo "  just migrate-v3-rollup $ROLLUP $COMPOSE_NETWORK      # for live migration"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Portal version $PORTAL_VERSION is compatible with V4 migration${NC}"
+echo ""
+
 if [ "$IS_DRY_RUN" = "true" ]; then
     echo "========================================="
-    echo "DRY RUN: Phase 2 Migration Simulation"
+    echo "DRY RUN: V4 Migration Simulation"
     echo "========================================="
     echo "The following will show detailed traces of what WOULD happen."
     echo "No transactions will be broadcast to the network."
     echo ""
 else
     echo "========================================="
-    echo "LIVE: Executing Phase 2 Migration"
+    echo "LIVE: Executing V4 Migration"
     echo "========================================="
     echo "WARNING: This will broadcast real transactions!"
     echo ""
@@ -107,9 +138,9 @@ else
     VERIFY_FLAG="--verify"
 fi
 
-# Execute the migration
+# Execute the V4 migration
 FORGE_ARGS=(
-    "script/migrate/MigrateRollup.s.sol:MigrateRollup"
+    "script/migrate/MigrateRollupV4.s.sol:MigrateRollupV4"
     "--sig" "run(string,string,bool)"
     "--rpc-url" "$NETWORK_RPC_URL"
 )
@@ -136,43 +167,18 @@ FORGE_ARGS+=("$ROLLUP" "$COMPOSE_NETWORK" "$IS_DRY_RUN")
 
 if forge script "${FORGE_ARGS[@]}"; then
     if [ "$IS_DRY_RUN" = "true" ]; then
-        echo -e "\n${GREEN}Dry run completed successfully!${NC}"
+        echo -e "\n${GREEN}V4 dry run completed successfully!${NC}"
         echo "No transactions were broadcast."
         echo "Review the simulation output above."
         echo ""
-        echo "To execute the migration for real, run:"
-        echo "  just migrate-rollup $ROLLUP $COMPOSE_NETWORK"
+        echo "To execute the V4 migration for real, run:"
+        echo "  just migrate-v4-rollup $ROLLUP $COMPOSE_NETWORK"
     else
-        echo -e "\n${GREEN}Phase 2 migration complete!${NC}"
-        
-        # Save migration data to structured deployment file
+        echo -e "\n${GREEN}V4 migration complete!${NC}"
         echo ""
-        echo "Saving migration data..."
-        
-        # Extract proxy addresses from rollup config
-        SYSTEM_CONFIG_PROXY=$(jq -r '.l1SystemConfigAddress' "$ROLLUP_CONFIG")
-        OPTIMISM_PORTAL_PROXY=$(jq -r '.optimismPortal.proxy' "$ROLLUP_CONFIG")
-        L1_CROSS_DOMAIN_MESSENGER_PROXY=$(jq -r '.l1CrossDomainMessenger' "$ROLLUP_CONFIG")
-        L1_STANDARD_BRIDGE_PROXY=$(jq -r '.l1StandardBridge' "$ROLLUP_CONFIG")
-        L1_ERC721_BRIDGE_PROXY=$(jq -r '.l1ERC721Bridge' "$ROLLUP_CONFIG")
-        
-        # Extract old implementation address
-        OLD_OPTIMISM_PORTAL_IMPL=$(jq -r '.optimismPortal.impl' "$ROLLUP_CONFIG")
-        
-        # Call save-migration script
-        ./scripts/save-migration.sh \
-            "$ROLLUP" \
-            "$COMPOSE_NETWORK" \
-            "$CHAIN_ID" \
-            "false" \
-            "$SYSTEM_CONFIG_PROXY" \
-            "$OPTIMISM_PORTAL_PROXY" \
-            "$L1_CROSS_DOMAIN_MESSENGER_PROXY" \
-            "$L1_STANDARD_BRIDGE_PROXY" \
-            "$L1_ERC721_BRIDGE_PROXY" \
-            "$OLD_OPTIMISM_PORTAL_IMPL"
+        echo "Rollup $ROLLUP has been successfully migrated to Compose shared infrastructure."
     fi
 else
-    echo -e "\n${RED}Migration failed!${NC}"
+    echo -e "\n${RED}V4 Migration failed!${NC}"
     exit 1
 fi

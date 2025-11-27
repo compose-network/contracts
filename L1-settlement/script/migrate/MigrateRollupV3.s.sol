@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { MigrateRollupInput, MigrateRollupOutput } from "./MigrateRollupIO.sol";
+import { MigrateRollupInput, MigrateRollupOutput } from "./MigrateRollupV3IO.sol";
 import { ComposeDeployUtils } from "script/libraries/ComposeDeployUtils.sol";
 import { ComposeConfig } from "script/libraries/ComposeConfig.sol";
 
@@ -32,10 +32,11 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 // Features
 import { Features } from "src/L1/SystemConfig.sol";
 
-/// @title MigrateRollup
-/// @notice Script to execute Phase 2: Per-Rollup Migration
-/// @dev Migrates an existing OP Stack rollup to use Compose shared infrastructure
-contract MigrateRollup is Script {
+/// @title MigrateRollupV3
+/// @notice Script to execute Phase 2: Per-Rollup Migration (V3 → Compose)
+/// @dev Migrates an existing OP Stack V3 rollup to V4 + Compose shared infrastructure
+/// @dev This performs a FULL migration including contract upgrades and state migration
+contract MigrateRollupV3 is Script {
     // NOTE: Struct fields MUST be in alphabetical order for vm.parseJson to work correctly
     struct ComposeDeployment {
         address anchorStateRegistry;
