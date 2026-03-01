@@ -50,7 +50,7 @@ interface IBridge {
     /// @param sessionId A unique ID for this transaction session.
     /// @param destBridge The address of the Bridge contract on the destination chain.
     function send(
-        uint256 chainDest,
+        uint256 otherChainId,
         address token,
         address sender,
         address receiver,
@@ -87,7 +87,7 @@ interface IBridge {
     /// @param amount The number of tokens to transfer.
     /// @param sessionId A unique ID for this transaction session.
     /// @param destBridge The address of the Bridge contract on the destination chain.
-    function SendAbort(
+    function sendAbort(
         uint256 otherChainId,
         address token,
         address sender,
@@ -104,15 +104,13 @@ interface IBridge {
     /// @param receiver The receiver's address.
     /// @param sessionId The session ID for tracking.
     /// @param srcBridge The bridge address on the source chain.
-    /// @return token The token address received.
-    /// @return amount The amount received.
     function recv(
         uint256 chainSrc,
         address sender,
         address receiver,
         uint256 sessionId,
         address srcBridge,
-        bytes receivedMessage
+        bytes memory receivedMessage
     ) external;
 
     /// @notice Confirms the receiving of tokens by transferring the reserved tokens to the receiver address and saving changes to the mailbox
@@ -139,8 +137,6 @@ interface IBridge {
     /// @param receiver The address receiving the tokens (must be the caller).
     /// @param sessionId The unique ID for this transaction session.
     /// @param srcBridge The address of the Bridge contract on the source chain.
-    /// @return token The address of the token that was transferred.
-    /// @return amount The number of tokens transferred.
     function recvAbort(
         uint256 otherChainId,
         address sender,

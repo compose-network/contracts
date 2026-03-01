@@ -78,7 +78,7 @@ contract BridgeTest is Setup {
         vm.startPrank(receiver);
 
         // receive tokens on chain A
-        (address receivedToken, uint256 receivedAmount) = bridge.receiveTokens(
+        (address receivedToken, uint256 receivedAmount) = bridge.recv(
             otherChain, // source chain id (tokens incoming from chain B)
             sender, // original sender of tokens
             receiver, // receiver address

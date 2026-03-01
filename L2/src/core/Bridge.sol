@@ -30,7 +30,7 @@ contract Bridge is IBridge {
         address senderContract;
         uint256 destChain;
         address destContract;
-        bytes32 sessionId;
+        uint256 sessionId;
         string label;
     }
 
@@ -41,7 +41,7 @@ contract Bridge is IBridge {
 
     // Sent / Received messages cache storage
     // Key: A unique ID (or index) | Value: The full message
-    mapping(bytes32 => FullMsg) public messageCache;
+    mapping(bytes32 => bytes) public messageCache;
 
     /// @notice Prepares the sending of tokens from the current chain to another chain by burning them and sending a message.
     /// @dev The caller must be the tokens sender. Tokens are burned, and a message is emitted for the destination bridge to process.
@@ -130,7 +130,7 @@ contract Bridge is IBridge {
             abi.encode(header)
         );
 
-        if(messageCache[key] != bytes(0)){
+        if(messageCache[key].length != 0){
             mailbox.write(otherChainId, destBridge, sessionId, "SEND", data); // TODO: replace depending on mailbox changes
             delete messageCache[key];
         } else revert Unauthorized();
@@ -145,7 +145,7 @@ contract Bridge is IBridge {
     /// @param amount The number of tokens to transfer.
     /// @param sessionId A unique ID for this transaction session.
     /// @param destBridge The address of the Bridge contract on the destination chain.
-    function SendAbort(
+    function sendAbort(
         uint256 otherChainId,
         address token,
         address sender,
@@ -174,7 +174,7 @@ contract Bridge is IBridge {
             abi.encode(header)
         );
 
-        if(messageCache[key] != bytes(0)){
+        if(messageCache[key].length != 0){
             IBridgeableToken(token).mint(sender, amount);
             delete messageCache[key];
         } else revert Unauthorized();
@@ -194,7 +194,7 @@ contract Bridge is IBridge {
         address receiver,
         uint256 sessionId,
         address srcBridge,
-        bytes receivedMessage
+        bytes memory receivedMessage
     ) external {
         if (msg.sender != receiver) {
             revert Unauthorized();
@@ -204,7 +204,7 @@ contract Bridge is IBridge {
             revert EmptySourceChainMessage();
         }
 
-        FullMsg memory fullMsg = abi.decode(receivedMessage);
+        FullMsg memory fullMsg = abi.decode(receivedMessage, (FullMsg));
 
         address readSender;
         address readReceiver;
@@ -245,7 +245,7 @@ contract Bridge is IBridge {
             abi.encode(h)
         );
 
-        messageCache[h] = m;
+        messageCache[key] = m;
 
         emit MessageReceived(abi.encode(confirmMsg));
     }
@@ -281,15 +281,17 @@ contract Bridge is IBridge {
 
         bytes memory m = messageCache[key];
 
-        if(m != bytes(0)){
-            (,,token, amount) = abi.decode(
+        if(m.length != 0){
+            (,token, amount) = abi.decode(
                 m,
-                (address, address, address, uint256)
+                (address, address, uint256)
             );
-            IBridgeableToken(token).transfer(receiver, amount);
-            mailbox.write(otherChainId, srcBridge, sessionId, "ACK SEND", m);
-            delete messageCache[key];
-            return (token, amount);
+            bool res = IBridgeableToken(token).transfer(receiver, amount);
+            if(res){
+                mailbox.write(otherChainId, srcBridge, sessionId, "ACK SEND", m);
+                delete messageCache[key];
+                return (token, amount);
+            } else revert Unauthorized();
         } else revert Unauthorized();
     }
 
@@ -300,8 +302,6 @@ contract Bridge is IBridge {
     /// @param receiver The address receiving the tokens (must be the caller).
     /// @param sessionId The unique ID for this transaction session.
     /// @param srcBridge The address of the Bridge contract on the source chain.
-    /// @return token The address of the token that was transferred.
-    /// @return amount The number of tokens transferred.
     function recvAbort(
         uint256 otherChainId,
         address sender,
@@ -324,12 +324,12 @@ contract Bridge is IBridge {
 
         bytes memory m = messageCache[key];
 
-        if(m != bytes(0)){
-            address memory token;
-            uint256 memory amount;
-            (,,token, amount) = abi.decode(
+        if(m.length != 0){
+            address token;
+            uint256 amount;
+            (,token, amount) = abi.decode(
                 m,
-                (address, address, address, uint256)
+                (address, address, uint256)
             );
             IBridgeableToken(token).burn(receiver, amount);
             delete messageCache[key];

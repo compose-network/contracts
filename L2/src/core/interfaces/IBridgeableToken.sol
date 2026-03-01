@@ -26,5 +26,5 @@ interface IBridgeableToken {
     /// @notice Transfer a specified amount of tokens to an account.
     /// @param account Address to transfer to.
     /// @param value Amount to transfer.
-    function transfer(address account, uint256 value) external;
+    function transfer(address account, uint256 value) external returns (bool);
 }
