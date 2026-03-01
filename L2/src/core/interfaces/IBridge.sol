@@ -26,22 +26,69 @@ interface IBridge {
     /// @param data The encoded data sent in the message.
     event DataWritten(bytes data);
 
+    /// @notice Sent message to be picked up by destination sequencer.
+    /// @param data The full message to be decoded.
+    event MessageCreated(bytes data);
+
+    /// @notice Message was picked up by sequencer and read successfully.
+    /// @param data The ack message to be decoded.
+    event MessageReceived(bytes data);
+
     /// @notice Emitted when tokens are successfully received and minted on the destination chain.
     /// @param token The address of the token received.
     /// @param amount The amount of tokens received.
     event TokensReceived(address token, uint256 amount);
 
 
-    /// @notice Function to send tokens to another chain.
-    /// @param chainDest The ID of the destination chain.
-    /// @param token The address of the token to send.
-    /// @param sender The sender's address.
-    /// @param receiver The receiver's address on the destination chain.
-    /// @param amount The amount of tokens to send.
-    /// @param sessionId The session ID for tracking.
-    /// @param destBridge The bridge address on the destination chain.
+    /// @notice Prepares the sending of tokens from the current chain to another chain by burning them and sending a message.
+    /// @dev The caller must be the tokens sender. Tokens are burned, and a message is emitted for the destination bridge to process.
+    /// @param otherChainId The ID of the destination blockchain.
+    /// @param token The address of the token being transferred.
+    /// @param sender The address sending the tokens (must be the caller).
+    /// @param receiver The address that will receive the tokens on the destination chain.
+    /// @param amount The number of tokens to transfer.
+    /// @param sessionId A unique ID for this transaction session.
+    /// @param destBridge The address of the Bridge contract on the destination chain.
     function send(
         uint256 chainDest,
+        address token,
+        address sender,
+        address receiver,
+        uint256 amount,
+        uint256 sessionId,
+        address destBridge
+    ) external;
+
+    /// @notice Confirms the sending of tokens from the current chain to another chain by saving the message to the mailbox.
+    /// @dev The message must have been save previously.
+    /// @param otherChainId The ID of the destination blockchain.
+    /// @param token The address of the token being transferred.
+    /// @param sender The address sending the tokens (must be the caller).
+    /// @param receiver The address that will receive the tokens on the destination chain.
+    /// @param amount The number of tokens to transfer.
+    /// @param sessionId A unique ID for this transaction session.
+    /// @param destBridge The address of the Bridge contract on the destination chain.
+    function sendConfirm(
+        uint256 otherChainId,
+        address token,
+        address sender,
+        address receiver,
+        uint256 amount,
+        uint256 sessionId,
+        address destBridge
+    ) external;
+
+    /// @notice Aborts the sending of tokens from the current chain to another chain by returning amount tokens to the owner.
+    /// @dev The message must have been save previously.
+    /// @param otherChainId The ID of the destination blockchain.
+    /// @param token The address of the token being transferred.
+    /// @param sender The address sending the tokens (must be the caller).
+    /// @param receiver The address that will receive the tokens on the destination chain.
+    /// @param amount The number of tokens to transfer.
+    /// @param sessionId A unique ID for this transaction session.
+    /// @param destBridge The address of the Bridge contract on the destination chain.
+    function SendAbort(
+        uint256 otherChainId,
         address token,
         address sender,
         address receiver,
@@ -59,11 +106,46 @@ interface IBridge {
     /// @param srcBridge The bridge address on the source chain.
     /// @return token The token address received.
     /// @return amount The amount received.
-    function receiveTokens(
+    function recv(
         uint256 chainSrc,
+        address sender,
+        address receiver,
+        uint256 sessionId,
+        address srcBridge,
+        bytes receivedMessage
+    ) external;
+
+    /// @notice Confirms the receiving of tokens by transferring the reserved tokens to the receiver address and saving changes to the mailbox
+    /// @dev The message must have been previously save.
+    /// @param otherChainId The ID of the source blockchain.
+    /// @param sender The address that sent the tokens from the source chain.
+    /// @param receiver The address receiving the tokens (must be the caller).
+    /// @param sessionId The unique ID for this transaction session.
+    /// @param srcBridge The address of the Bridge contract on the source chain.
+    /// @return token The address of the token that was transferred.
+    /// @return amount The number of tokens transferred.
+    function recvConfirm(
+        uint256 otherChainId,
         address sender,
         address receiver,
         uint256 sessionId,
         address srcBridge
     ) external returns (address token, uint256 amount);
+
+    /// @notice Aborts the receiving of tokens by burning the reserved tokens
+    /// @dev The message must have been previously save.
+    /// @param otherChainId The ID of the source blockchain.
+    /// @param sender The address that sent the tokens from the source chain.
+    /// @param receiver The address receiving the tokens (must be the caller).
+    /// @param sessionId The unique ID for this transaction session.
+    /// @param srcBridge The address of the Bridge contract on the source chain.
+    /// @return token The address of the token that was transferred.
+    /// @return amount The number of tokens transferred.
+    function recvAbort(
+        uint256 otherChainId,
+        address sender,
+        address receiver,
+        uint256 sessionId,
+        address srcBridge
+    ) external;
 }
